@@ -7,11 +7,21 @@
 <title>云序 · 多公司订单管理系统</title>
 
 <style>
-  button, input, select, .tab {
-    cursor: pointer !important;
+  html, body {
     pointer-events: auto !important;
   }
+  button, input, select, .tab, [class*="tab"] {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 10;
+  }
+  /* 防止上层元素遮挡 */
+  *:not(button):not(input):not(select):not(label) {
+    pointer-events: none;
+  }
 </style>
+
 
 <!--
 ================================================================================
