@@ -1,0 +1,2963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>云序 · 多公司订单管理系统</title>
+
+<!--
+================================================================================
+  云序 · 多公司订单管理系统（单文件版）
+================================================================================
+  【技术栈】纯 HTML + CSS + 原生 JavaScript（无框架、无构建），后端 Supabase。
+
+  【三步上线】
+  1) 打开 https://supabase.com 新建一个项目（Region 选离你近的，如 Singapore）。
+  2) 项目 → 左侧「SQL Editor」→ New query → 把本文件「系统配置」页里的
+     初始化 SQL 整段粘贴执行（只需一次，可重复执行）。
+  3) 项目 → Settings → API，复制 Project URL 与 anon public key，
+     直接粘到本系统登录页的「连接 Supabase」面板里，点保存即可
+     （也可以写进下面 SUPABASE_URL / SUPABASE_ANON_KEY 常量，适合部署给别人用；
+       页面上填的值只保存在当前浏览器）。
+
+  【第一个账号】
+  数据库里没有任何用户时，第一个注册的账号会自动成为「超级管理员」。
+  登录后会看到「系统配置」页，可随时复制 SQL 或再次查看步骤。
+
+  【安全说明】
+  · anon key 是公开密钥，放在前端是正常做法；真正的权限由数据库 RLS 控制。
+  · 绝不要把 service_role key 写进前端代码。
+  · 各公司的数据隔离完全依靠 RLS 策略 + company_id 过滤，前端只是配合。
+================================================================================
+-->
+
+<style>
+/* ==========================================================================
+   设计变量
+   ========================================================================== */
+:root{
+  --bg:#f4f6fb;
+  --panel:#ffffff;
+  --ink:#0f172a;
+  --ink-2:#334155;
+  --muted:#64748b;
+  --line:#e5e9f2;
+  --line-2:#eef2f8;
+  --brand:#2f6bff;
+  --brand-2:#1b4fd8;
+  --brand-soft:#eef3ff;
+  --ok:#0f9d6e;
+  --ok-soft:#e8f8f1;
+  --warn:#b8720a;
+  --warn-soft:#fff6e6;
+  --danger:#e0492f;
+  --danger-soft:#fdeeeb;
+  --info:#0a8ea8;
+  --info-soft:#e7f7fa;
+  --slate:#64748b;
+  --slate-soft:#f1f5f9;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.05);
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 12px 28px -14px rgba(15,23,42,.22);
+  --r:14px;
+  --sidebar-w:250px;
+  --font:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+/* hidden 属性优先于任何 display 规则（登录/注册表单、应用外壳都用它切换） */
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+body.no-scroll{overflow:hidden}
+h1,h2,h3,h4,p{margin:0}
+button{font-family:inherit}
+code,pre,.mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace}
+
+/* ==========================================================================
+   通用控件
+   ========================================================================== */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);
+  background:#fff;color:var(--ink-2);font-size:13.5px;font-weight:600;
+  cursor:pointer;transition:background .15s,border-color .15s,transform .1s;
+  white-space:nowrap;text-decoration:none;
+}
+.btn:hover{background:#f8fafc;border-color:#d5dceb}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.btn.primary{background:linear-gradient(180deg,var(--brand),var(--brand-2));border-color:transparent;color:#fff;box-shadow:0 8px 18px -10px rgba(47,107,255,.95)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.danger{background:var(--danger);border-color:transparent;color:#fff}
+.btn.danger:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--slate-soft);color:var(--ink)}
+.btn.sm{height:32px;padding:0 11px;font-size:12.5px;border-radius:9px}
+.btn.block{width:100%}
+.btn.icon{width:38px;padding:0}
+.btn.light{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}
+.btn.light:hover{background:rgba(255,255,255,.24)}
+
+.input,.select,.textarea{
+  width:100%;height:40px;padding:0 12px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;font:inherit;color:var(--ink);
+  transition:border-color .15s,box-shadow .15s;
+}
+.textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
+.input::placeholder,.textarea::placeholder{color:#9aa7bd}
+.input:focus,.select:focus,.textarea:focus{
+  outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,107,255,.14);
+}
+.input:disabled,.select:disabled,.textarea:disabled{background:#f6f8fc;color:var(--muted);cursor:not-allowed}
+.select{appearance:none;-webkit-appearance:none;padding-right:32px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+}
+.select-sm{height:32px;font-size:12.5px;border-radius:9px;padding:0 28px 0 10px;width:auto;min-width:118px;background-position:right 8px center}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field > span{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.field > span em{color:var(--danger);font-style:normal;margin-left:2px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .span-2{grid-column:1 / -1}
+.form-error{color:var(--danger);font-size:12.5px;font-weight:600;min-height:0;margin-top:10px}
+.form-error:empty{display:none}
+.form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.6}
+.sm-text{font-size:12.5px;font-weight:500}
+
+.link{background:none;border:0;padding:0;color:var(--brand);font:inherit;font-weight:600;cursor:pointer}
+.link:hover{text-decoration:underline}
+.link.danger{color:var(--danger)}
+
+.badge{
+  display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;
+  border-radius:6px;font-size:12px;font-weight:700;background:var(--slate-soft);
+  color:var(--slate);white-space:nowrap;
+}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.danger{background:var(--danger-soft);color:var(--danger)}
+.badge.info{background:var(--info-soft);color:var(--info)}
+.badge.blue{background:var(--brand-soft);color:var(--brand-2)}
+.badge.muted{background:var(--slate-soft);color:var(--slate)}
+.badge.soft{background:#fff;border:1px solid var(--line);color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+/* 仅超级管理员可见的控件（body 上的 is-super 由登录角色决定） */
+body:not(.is-super) .super-only{display:none !important}
+
+/* ==========================================================================
+   登录页
+   ========================================================================== */
+.auth{
+  min-height:100%;display:grid;place-items:center;padding:26px 18px;
+  position:relative;overflow:hidden;background:#0b1220;
+}
+.auth::before{
+  content:"";position:absolute;inset:0;
+  background:
+    radial-gradient(900px 520px at 12% 8%,rgba(47,107,255,.40),transparent 62%),
+    radial-gradient(760px 520px at 88% 92%,rgba(10,142,168,.30),transparent 62%);
+}
+.auth::after{
+  content:"";position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(circle at 50% 42%,#000,transparent 78%);
+  mask-image:radial-gradient(circle at 50% 42%,#000,transparent 78%);
+}
+.auth-card{
+  position:relative;width:100%;max-width:430px;background:#fff;
+  border-radius:20px;padding:30px 30px 24px;
+  box-shadow:0 40px 80px -30px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.5) inset;
+  animation:rise .35s ease;
+}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+.brand{display:flex;align-items:center;gap:11px}
+.brand-mark{
+  width:40px;height:40px;border-radius:12px;flex:none;
+  background:linear-gradient(135deg,#4d82ff,#1b4fd8);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;
+  box-shadow:0 10px 20px -10px rgba(47,107,255,.95);
+}
+.brand-name{font-weight:800;font-size:15.5px;letter-spacing:-.01em;color:var(--ink)}
+.brand-sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.sidebar .brand-name{color:#fff}
+.sidebar .brand-sub{color:#7f8daa}
+
+.tabs{display:flex;gap:4px;background:var(--slate-soft);padding:4px;border-radius:12px}
+.tab{flex:1;height:34px;border:0;background:transparent;border-radius:9px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;transition:.15s}
+.tab.active{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm)}
+
+.auth-banner{
+  margin-top:16px;padding:11px 13px;border-radius:11px;font-size:12.5px;
+  line-height:1.55;background:var(--warn-soft);color:#8a5800;border:1px solid #f3e0bb;
+}
+.auth-banner.danger{background:var(--danger-soft);color:#9e2f1d;border-color:#f6d4cd}
+.auth-banner b{font-weight:800}
+.cfg-panel{margin-top:22px;padding:16px;border:1px dashed #ccd7ea;border-radius:14px;background:#f8fafc}
+.cfg-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cfg-step{font-size:14px;font-weight:800;color:var(--ink)}
+.auth-form{display:flex;flex-direction:column;gap:13px;margin-top:20px}
+.auth-form .btn.block{height:42px;margin-top:2px}
+.auth-foot{margin-top:18px;text-align:center;font-size:12.5px}
+.auth-foot .link{font-size:12.5px;color:var(--muted)}
+.auth-foot .link:hover{color:var(--brand-2)}
+
+/* 未分配公司 / 被停用 的拦截页 */
+.blocked{min-height:100%;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.blocked-card{width:100%;max-width:420px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px;text-align:center;box-shadow:var(--shadow)}
+.blocked-icon{width:52px;height:52px;border-radius:16px;margin:0 auto 16px;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn);font-size:24px;font-weight:800}
+.blocked h2{font-size:17px;margin-bottom:8px}
+.blocked p{font-size:13px;color:var(--muted);line-height:1.7}
+
+/* ==========================================================================
+   应用骨架
+   ========================================================================== */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;width:var(--sidebar-w);flex:0 0 var(--sidebar-w);
+  background:#0b1220;display:flex;flex-direction:column;padding:18px 13px 14px;z-index:60;
+}
+.sidebar .brand{padding:0 6px;margin-bottom:22px}
+.nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto}
+.nav-item{
+  display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;
+  border-radius:10px;color:#93a0b8;font-weight:600;font-size:13.5px;
+  cursor:pointer;border:0;background:transparent;width:100%;text-align:left;
+  transition:background .15s,color .15s;
+}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+.nav-item.active{background:linear-gradient(90deg,rgba(47,107,255,.26),rgba(47,107,255,.05));color:#fff;box-shadow:inset 2px 0 0 var(--brand)}
+.nav-item svg{width:18px;height:18px;flex:none}
+.side-foot{border-top:1px solid rgba(255,255,255,.09);padding-top:12px;margin-top:10px}
+.user-chip{display:flex;align-items:center;gap:10px;padding:4px 6px 12px}
+.avatar{
+  width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,#4d82ff,#1b4fd8);color:#fff;font-weight:800;font-size:14px;
+}
+.user-meta{min-width:0}
+.user-name{color:#fff;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{color:#7f8daa;font-size:11.5px;margin-top:1px}
+.btn.dark-ghost{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);color:#c3cde0}
+.btn.dark-ghost:hover{background:rgba(255,255,255,.12);color:#fff}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  height:64px;display:flex;align-items:center;gap:12px;padding:0 22px;
+  background:rgba(255,255,255,.85);backdrop-filter:saturate(1.7) blur(10px);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+}
+.topbar-text{min-width:0;flex:1}
+.topbar-title{font-size:16px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-sub{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+#btnMenu{display:none}
+
+.content{padding:22px;width:100%;max-width:1380px;margin:0 auto;flex:1}
+.view{display:none;animation:fade .18s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}}
+
+/* ==========================================================================
+   卡片 / 表格 / 徽标
+   ========================================================================== */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-sm);margin-bottom:16px;overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.card-head h3{font-size:14.5px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.card-body{padding:18px}
+.head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.head-search{width:210px;height:34px;font-size:13px}
+
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:660px}
+#ordersTable{min-width:900px}
+.table th{
+  text-align:left;font-weight:700;color:var(--muted);font-size:11.5px;
+  letter-spacing:.04em;text-transform:uppercase;padding:10px 14px;
+  background:#f8fafc;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.table td{padding:12px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.table tbody tr:last-child td{border-bottom:0}
+.table tbody tr:hover{background:#fafbfe}
+.table .num{text-align:right;font-variant-numeric:tabular-nums}
+.table .strong{font-weight:700}
+.table .nowrap{white-space:nowrap}
+.table .ops{text-align:right;white-space:nowrap}
+.table .ops .link + .link{margin-left:12px}
+.cell-main{font-weight:600;color:var(--ink)}
+.cell-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
+.empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:6px}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-top:1px solid var(--line-2);flex-wrap:wrap}
+.pager-info{font-size:12.5px;color:var(--muted)}
+.pager-btns{display:flex;gap:8px}
+
+/* ==========================================================================
+   仪表盘
+   ========================================================================== */
+.hello{
+  position:relative;overflow:hidden;border-radius:var(--r);padding:20px 22px;
+  background:linear-gradient(120deg,#0b1220 0%,#17306b 58%,#1c3f8f 100%);
+  color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:16px;box-shadow:0 20px 40px -26px rgba(11,18,32,.95);
+}
+.hello::after{
+  content:"";position:absolute;right:-70px;top:-90px;width:280px;height:280px;
+  border-radius:50%;background:radial-gradient(circle,rgba(122,162,255,.45),transparent 66%);
+}
+.hello-main{position:relative;min-width:0}
+.hello-kicker{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.hello-sub{font-size:12.5px;color:#a9b8d8;margin-top:5px}
+.hello-actions{position:relative;display:flex;gap:8px;flex-wrap:wrap}
+
+.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.stat{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:15px 18px;box-shadow:var(--shadow-sm);overflow:hidden}
+.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+.stat.ok::before{background:var(--ok)}
+.stat.warn::before{background:#e0a03a}
+.stat.info::before{background:#31b0c6}
+.stat-label{font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.stat-value{font-size:21px;font-weight:800;letter-spacing:-.035em;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-foot{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+.grid-2{display:grid;grid-template-columns:1.45fr 1fr;gap:16px}
+.chart{height:196px;padding:18px 18px 6px;margin-bottom:8px}
+.bars{display:flex;align-items:flex-end;gap:9px;height:100%}
+.bar-col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;gap:6px}
+.bar-track{flex:1;display:flex;align-items:flex-end}
+.bar-fill{position:relative;width:100%;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,#7ba0ff,#2f6bff);transition:height .4s ease}
+.bar-fill .bar-val{position:absolute;left:0;right:0;top:-16px;text-align:center;font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap}
+.bar-x{font-size:11px;color:var(--muted);text-align:center}
+.sbar{margin-bottom:13px}
+.sbar:last-child{margin-bottom:0}
+.sbar-top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);margin-bottom:5px}
+.sbar-top b{font-variant-numeric:tabular-nums}
+.sbar-track{height:7px;border-radius:99px;background:#eef2f8;overflow:hidden}
+.sbar-fill{height:100%;border-radius:99px;background:var(--brand);transition:width .4s ease}
+.sbar-fill.blue{background:var(--brand-2)}
+.sbar-fill.ok{background:#28b483}
+.sbar-fill.warn{background:#e0a03a}
+.sbar-fill.info{background:#31b0c6}
+.sbar-fill.muted{background:#a8b3c7}
+
+/* ==========================================================================
+   工具栏 / 筛选
+   ========================================================================== */
+.toolbar{display:flex;align-items:center;gap:10px;padding:14px 16px;flex-wrap:wrap}
+.tb-q{flex:1;min-width:190px;max-width:340px;height:36px}
+.tb-s{width:auto;min-width:128px;height:36px;flex:none}
+.tb-range{display:flex;align-items:center;gap:7px}
+.tb-range .input{width:150px;height:36px}
+.tb-range .muted{font-size:12.5px}
+
+/* ==========================================================================
+   弹窗 / 提示
+   ========================================================================== */
+.modal-host{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:16px}
+.modal-host[hidden]{display:none}
+.modal-backdrop{position:absolute;inset:0;background:rgba(9,15,30,.52);backdrop-filter:blur(3px);animation:fade .15s}
+.modal{
+  position:relative;width:100%;max-width:580px;max-height:calc(100vh - 32px);
+  background:#fff;border-radius:16px;box-shadow:0 40px 90px -30px rgba(0,0,0,.65);
+  display:flex;flex-direction:column;animation:pop .18s ease;
+}
+.modal.sm{max-width:430px}
+.modal.lg{max-width:900px}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.985)}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line-2);flex:none}
+.modal-head h3{font-size:15px;font-weight:800}
+.icon-btn{width:32px;height:32px;border:0;background:transparent;border-radius:9px;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.icon-btn:hover{background:var(--slate-soft);color:var(--ink)}
+.modal-body{padding:18px;overflow:auto}
+.modal-body p{font-size:13.5px;color:var(--ink-2);line-height:1.7}
+
+#toastHost{position:fixed;right:16px;bottom:16px;z-index:220;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
+.toast{
+  max-width:min(360px,calc(100vw - 32px));background:#0f172a;color:#fff;
+  padding:11px 15px;border-radius:11px;font-size:13px;font-weight:600;
+  box-shadow:0 18px 36px -14px rgba(0,0,0,.6);animation:toastIn .2s ease;
+}
+.toast.ok{background:#0d7a58}
+.toast.error{background:#b3271a}
+.toast.warn{background:#9a5800}
+.toast.out{opacity:0;transform:translateY(6px);transition:.2s}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}}
+
+#progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:300;opacity:0;transition:width .25s,opacity .25s;background:linear-gradient(90deg,#2f6bff,#7ba0ff);box-shadow:0 0 12px rgba(47,107,255,.8)}
+#progress.on{opacity:1}
+
+/* ==========================================================================
+   配置页
+   ========================================================================== */
+.kv{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--muted);font-weight:600}
+.kv code{font-size:12px;background:var(--slate-soft);padding:3px 8px;border-radius:6px;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.steps{counter-reset:s;padding:6px 18px 18px}
+.steps li{position:relative;padding:8px 0 8px 34px;font-size:13px;color:var(--ink-2);line-height:1.65;list-style:none;counter-increment:s}
+.steps li::before{
+  content:counter(s);position:absolute;left:0;top:8px;width:22px;height:22px;border-radius:7px;
+  background:var(--brand-soft);color:var(--brand-2);font-size:12px;font-weight:800;display:grid;place-items:center;
+}
+.code-wrap{max-height:420px;overflow:auto;background:#0b1220;border-radius:0}
+.code-wrap pre{margin:0;padding:18px;color:#cfd9ea;font-size:12px;line-height:1.7;white-space:pre;tab-size:2}
+.notes{padding:4px 18px 18px}
+.notes li{font-size:13px;color:var(--ink-2);line-height:1.75;margin:8px 0}
+.notes b{color:var(--ink)}
+
+/* ==========================================================================
+   响应式
+   ========================================================================== */
+.scrim{position:fixed;inset:0;background:rgba(9,15,30,.45);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+
+@media (max-width:1100px){
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+}
+@media (max-width:980px){
+  .sidebar{position:fixed;left:0;top:0;transform:translateX(-103%);transition:transform .26s ease;box-shadow:0 0 60px rgba(0,0,0,.45)}
+  .sidebar.open{transform:none}
+  #btnMenu{display:inline-flex}
+  .content{padding:14px}
+  .topbar{height:58px;padding:0 14px}
+  .grid-2{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .stat{padding:13px 14px}
+  .stat-value{font-size:20px}
+  .hello{flex-direction:column;align-items:flex-start;padding:18px}
+  .hello-kicker{font-size:16px}
+  .head-search{width:100%}
+  .card-head .head-actions{width:100%}
+  .card-head .head-actions .btn{flex:none}
+  .tb-q{max-width:none;width:100%}
+}
+@media (max-width:620px){
+  .form-grid{grid-template-columns:1fr}
+  .auth-card{padding:24px 20px 20px;border-radius:16px}
+  .content{padding:12px}
+  .card-head{padding:13px 14px}
+  .card-body{padding:14px}
+  .table th,.table td{padding:10px 12px}
+  .hello-actions{width:100%}
+  .hello-actions .btn{flex:1}
+  .tb-range{width:100%}
+  .tb-range .input{flex:1;width:auto}
+  .tb-s{flex:1;min-width:0}
+  .modal-host{padding:0;align-items:flex-end}
+  .modal{max-width:100%;max-height:92vh;border-radius:16px 16px 0 0}
+  .modal.sm,.modal.lg{max-width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ======================= 登录 / 注册 ======================= -->
+<div class="auth" id="authScreen">
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-mark">序</div>
+      <div>
+        <div class="brand-name">云序 · 多公司订单管理系统</div>
+        <div class="brand-sub">Multi-Company Order Management</div>
+      </div>
+    </div>
+
+    <!-- 未连接 Supabase 时显示：直接在页面里粘贴密钥，不用改文件 -->
+    <div class="cfg-panel" id="cfgPanel" hidden>
+      <div class="cfg-head">
+        <span class="cfg-step">连接 Supabase</span>
+        <span class="muted sm-text">只需填一次</span>
+      </div>
+      <p class="hint" style="margin:6px 0 14px">
+        在 Supabase 项目里打开 <b>Project Settings → API</b>，复制下面两项粘进来：
+      </p>
+      <label class="field"><span>Project URL</span>
+        <input class="input" id="cfgUrl" placeholder="https://abcdefgh.supabase.co" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" style="margin-top:10px"><span>anon public key</span>
+        <input class="input" id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." autocomplete="off" spellcheck="false">
+      </label>
+      <div class="form-error" id="cfgError"></div>
+      <button class="btn primary block" type="button" data-act="save-cfg" style="margin-top:12px">保存并连接</button>
+      <p class="hint" style="margin-top:10px">
+        只保存在本浏览器，不会上传到任何地方。换电脑或清空浏览器数据后需要重填；
+        长期部署可把这两项写进文件顶部常量。
+      </p>
+    </div>
+
+    <div id="authTabsWrap">
+    <div class="tabs" id="authTabs" style="margin-top:22px">
+      <button class="tab active" type="button" data-act="tab" data-tab="login">登录</button>
+      <button class="tab" type="button" data-act="tab" data-tab="register">注册</button>
+    </div>
+
+    <div class="auth-banner" id="authBanner" hidden></div>
+
+    <form class="auth-form" id="loginForm" novalidate>
+      <label class="field"><span>邮箱</span>
+        <input class="input" name="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+      </label>
+      <label class="field"><span>密码</span>
+        <input class="input" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required>
+      </label>
+      <div class="form-error" id="loginError"></div>
+      <button class="btn primary block" type="submit" id="loginBtn">登录</button>
+    </form>
+
+    <form class="auth-form" id="registerForm" hidden novalidate>
+      <label class="field"><span>姓名</span>
+        <input class="input" name="full_name" type="text" autocomplete="name" placeholder="你的姓名" maxlength="30" required>
+      </label>
+      <label class="field"><span>邮箱</span>
+        <input class="input" name="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+      </label>
+      <label class="field"><span>密码</span>
+        <input class="input" name="password" type="password" autocomplete="new-password" placeholder="至少 6 位" required>
+      </label>
+      <label class="field"><span>确认密码</span>
+        <input class="input" name="password2" type="password" autocomplete="new-password" placeholder="再输入一次" required>
+      </label>
+      <div class="form-error" id="registerError"></div>
+      <button class="btn primary block" type="submit" id="registerBtn">创建账号</button>
+      <p class="hint" id="registerHint">注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。</p>
+    </form>
+    </div><!-- /#authTabsWrap -->
+
+    <div class="auth-foot">
+      <button class="link" type="button" data-act="guide">查看建表 SQL / 配置说明</button>
+      <span class="muted" id="footSep" style="margin:0 7px" hidden>·</span>
+      <button class="link" type="button" id="footEdit" data-act="edit-cfg" hidden>连接填错了？重新填写</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 拦截页（未分配公司 / 已停用） ======================= -->
+<div class="blocked" id="blockedScreen" hidden>
+  <div class="blocked-card">
+    <div class="blocked-icon" id="blockedIcon">!</div>
+    <h2 id="blockedTitle">账号暂不可用</h2>
+    <p id="blockedText"></p>
+    <div style="margin-top:20px"><button class="btn primary block" data-act="logout">退出登录</button></div>
+  </div>
+</div>
+
+<!-- ======================= 主应用 ======================= -->
+<div class="app" id="appShell" hidden>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">序</div>
+      <div style="min-width:0">
+        <div class="brand-name">云序订单</div>
+        <div class="brand-sub" id="sideCompany">—</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="navList"></nav>
+
+    <div class="side-foot">
+      <div class="user-chip">
+        <div class="avatar" id="avatar">U</div>
+        <div class="user-meta">
+          <div class="user-name" id="userName">—</div>
+          <div class="user-role" id="userRole">—</div>
+        </div>
+      </div>
+      <button class="btn dark-ghost block sm" data-act="logout">退出登录</button>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn icon ghost" id="btnMenu" type="button" aria-label="打开菜单"></button>
+      <div class="topbar-text">
+        <div class="topbar-title" id="topbarTitle">仪表盘</div>
+        <div class="topbar-sub" id="topbarSub"></div>
+      </div>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </header>
+
+    <main class="content">
+
+      <!-- ---------- 仪表盘 ---------- -->
+      <section class="view" id="view-dashboard">
+        <div class="hello" id="helloCard"></div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h3>近 7 天下单金额</h3><span class="muted sm-text">按天统计</span></div>
+            <div class="chart" id="chartBars"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>订单状态分布</h3></div>
+            <div class="card-body" id="statusBars"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>最近订单</h3><button class="btn ghost sm" data-goto="orders">查看全部</button></div>
+          <div class="table-wrap"><table class="table" id="recentTable"></table></div>
+        </div>
+      </section>
+
+      <!-- ---------- 订单管理 ---------- -->
+      <section class="view" id="view-orders">
+        <div class="card toolbar">
+          <input class="input tb-q" id="fq" placeholder="搜索客户姓名 / 商品 / 电话" autocomplete="off">
+          <select class="select tb-s" id="fstatus">
+            <option value="">全部状态</option>
+            <option value="pending">待处理</option>
+            <option value="confirmed">已确认</option>
+            <option value="shipped">已发货</option>
+            <option value="completed">已完成</option>
+            <option value="cancelled">已取消</option>
+          </select>
+          <select class="select tb-s super-only" id="fcompany"><option value="">全部公司</option></select>
+          <div class="tb-range">
+            <input class="input" type="date" id="ffrom" aria-label="开始日期">
+            <span class="muted">至</span>
+            <input class="input" type="date" id="fto" aria-label="结束日期">
+          </div>
+          <button class="btn ghost" type="button" data-act="reset-filters">重置</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>订单列表 <span class="muted sm-text" id="ordersCount"></span></h3>
+            <span class="muted sm-text hide-sm">点击「编辑」可修改订单，普通用户仅能查看与录入</span>
+          </div>
+          <div class="table-wrap"><table class="table" id="ordersTable"></table></div>
+          <div class="pager" id="ordersPager"></div>
+        </div>
+      </section>
+
+      <!-- ---------- 用户管理 ---------- -->
+      <section class="view" id="view-users">
+        <div class="card">
+          <div class="card-head">
+            <h3>公司成员 <span class="muted sm-text" id="usersCount"></span></h3>
+            <div class="head-actions">
+              <input class="input head-search" id="fuser" placeholder="搜索姓名 / 邮箱" autocomplete="off">
+              <button class="btn primary sm" type="button" data-act="invite">+ 邀请用户</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table class="table" id="usersTable"></table></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>待接受的邀请</h3>
+            <span class="muted sm-text">对方用该邮箱注册后，自动加入对应公司</span>
+          </div>
+          <div class="table-wrap"><table class="table" id="invitesTable"></table></div>
+        </div>
+      </section>
+
+      <!-- ---------- 公司管理（仅超级管理员） ---------- -->
+      <section class="view" id="view-companies">
+        <div class="card">
+          <div class="card-head">
+            <h3>全部公司 <span class="muted sm-text" id="companiesCount"></span></h3>
+            <div class="head-actions">
+              <input class="input head-search" id="fcompany-search" placeholder="搜索公司名称 / 编号" autocomplete="off">
+              <button class="btn primary sm" type="button" data-act="new-company">+ 新建公司</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table class="table" id="companiesTable"></table></div>
+        </div>
+      </section>
+
+      <!-- ---------- 系统配置 ---------- -->
+      <section class="view" id="view-setup">
+        <div id="setupBody"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ======================= 弹窗 ======================= -->
+<div class="modal-host" id="modalHost" hidden>
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3 id="modalTitle">标题</h3>
+      <button class="icon-btn" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="modal-host" id="confirmHost" hidden>
+  <div class="modal-backdrop" data-cancel></div>
+  <div class="modal sm" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3 id="confirmTitle">确认操作</h3>
+      <button class="icon-btn" type="button" data-cancel aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmText"></p>
+      <div id="confirmExtra" style="margin-top:12px"></div>
+    </div>
+    <div class="form-actions" style="padding:0 18px 18px;margin-top:0">
+      <button class="btn ghost" type="button" data-cancel>取消</button>
+      <button class="btn primary" type="button" id="confirmOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* ============================================================================
+ * 云序 · 多公司订单管理系统
+ * 纯前端单文件实现：Supabase 负责认证 + Postgres(RLS) 负责数据隔离
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+ * 1. Supabase 配置（唯一需要修改的地方）
+ *    URL / anon key 在 Supabase 控制台 → Project Settings → API 中获取
+ * -------------------------------------------------------------------------- */
+const SUPABASE_URL = 'https://djgxifkricznigwtlaba.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_RdKokILTvbPtqjR9EUHB-A_7iW9EuEc';
+
+/* 运行时配置：优先用页面上填过、存在浏览器 localStorage 里的值，其次用上面两个常量。
+   这样部署时可以写死在文件里，第一次用的人也可以直接在登录页粘贴，不必改文件。 */
+const CFG_STORE_KEY = 'yunxu_supabase_cfg';
+
+function readSavedCfg() {
+  try {
+    const raw = localStorage.getItem(CFG_STORE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+const savedCfg = readSavedCfg();
+const CFG_URL  = String((savedCfg && savedCfg.url) || SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const CFG_ANON = String((savedCfg && savedCfg.key) || SUPABASE_ANON_KEY || '').trim();
+
+/* Project URL 必须是 https://xxxx.supabase.co 这种形式 */
+function isValidSupabaseUrl(u) {
+  return /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(String(u || '').trim());
+}
+
+const isConfigured =
+  isValidSupabaseUrl(CFG_URL) &&
+  CFG_ANON.length > 30 &&
+  !/YOUR-|CHANGE-ME/i.test(CFG_ANON);
+
+/* 当前配置来自哪里（展示在「系统配置」页） */
+const CFG_SOURCE = (savedCfg && savedCfg.url)
+  ? '浏览器本地保存'
+  : (isConfigured ? '文件顶部常量' : '未配置');
+
+/* ----------------------------------------------------------------------------
+ * 2. 数据库初始化 SQL（同时展示在「系统配置」页，可一键复制）
+ * -------------------------------------------------------------------------- */
+const SETUP_SQL = `-- ============================================================================
+-- 云序 · 多公司订单管理系统 —— Supabase 初始化脚本
+-- 用法：Supabase 控制台 → SQL Editor → 新建查询 → 整段粘贴 → Run
+-- 可重复执行（表 / 函数 / 策略都做了 if not exists / drop if exists）
+-- ============================================================================
+
+create extension if not exists pgcrypto;
+
+-- ---------------------------------------------------------------------------
+-- 1) 公司表
+-- ---------------------------------------------------------------------------
+create table if not exists public.companies (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique,                              -- 公司名称
+  code        text unique,                                       -- 公司编号（选填）
+  contact     text,                                              -- 联系人
+  phone       text,                                              -- 联系电话
+  status      text not null default 'active'
+              check (status in ('active','disabled')),
+  created_at  timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 2) 用户资料表：与 auth.users 一一对应，存放角色与归属公司
+--    role: super_admin 超级管理员 / company_admin 公司管理员 / user 普通用户
+-- ---------------------------------------------------------------------------
+create table if not exists public.profiles (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  email       text,
+  full_name   text,
+  role        text not null default 'user'
+              check (role in ('super_admin','company_admin','user')),
+  company_id  uuid references public.companies(id) on delete set null,
+  status      text not null default 'active'
+              check (status in ('active','disabled')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists profiles_company_idx on public.profiles(company_id);
+
+-- ---------------------------------------------------------------------------
+-- 3) 邀请表
+--    公司管理员“添加用户”= 发出邀请；对方用该邮箱注册后自动获得角色与公司
+--    （前端无法安全地直接创建 auth 账号，邀请是纯前端方案里最稳妥的做法）
+-- ---------------------------------------------------------------------------
+create table if not exists public.invites (
+  id          uuid primary key default gen_random_uuid(),
+  email       text not null,
+  role        text not null default 'user'
+              check (role in ('company_admin','user')),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  invited_by  uuid references public.profiles(id) on delete set null,
+  status      text not null default 'pending'
+              check (status in ('pending','accepted','revoked')),
+  created_at  timestamptz not null default now(),
+  accepted_at timestamptz
+);
+create index if not exists invites_email_idx   on public.invites (lower(email));
+create index if not exists invites_company_idx on public.invites (company_id);
+
+-- ---------------------------------------------------------------------------
+-- 4) 订单表
+--    company_id = 归属公司（数据隔离核心字段）
+--    user_id    = 录入人
+-- ---------------------------------------------------------------------------
+create table if not exists public.orders (
+  id             uuid primary key default gen_random_uuid(),
+  order_no       text not null default
+                 ('ORD-' || to_char(now(),'YYYYMMDD') || '-' ||
+                  upper(substr(md5(random()::text), 1, 6))),
+  company_id     uuid not null references public.companies(id) on delete cascade,
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  customer_name  text not null,                                  -- 客户姓名
+  customer_phone text,                                           -- 联系方式
+  product_name   text not null,                                  -- 商品名称
+  quantity       numeric not null default 1 check (quantity >= 0),
+  amount         numeric not null default 0 check (amount >= 0), -- 金额
+  status         text not null default 'pending'
+                 check (status in ('pending','confirmed','shipped','completed','cancelled')),
+  ordered_at     timestamptz not null default now(),             -- 下单时间
+  remark         text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists orders_company_idx on public.orders (company_id, ordered_at desc);
+create index if not exists orders_user_idx    on public.orders (user_id);
+create index if not exists orders_status_idx  on public.orders (status);
+
+-- ---------------------------------------------------------------------------
+-- 5) 新用户注册时自动建档
+--    · 库里还没有任何用户 → 第一个注册者自动成为超级管理员（完成初始化）
+--    · 邮箱命中待接受邀请 → 自动写入邀请里的角色和公司
+--    · 其他情况 → 普通用户（等待管理员分配公司）
+-- ---------------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_inv   public.invites%rowtype;
+  v_total int;
+begin
+  select count(*) into v_total from public.profiles;
+
+  if v_total = 0 then
+    insert into public.profiles (id, email, full_name, role)
+    values (new.id, new.email,
+            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),
+            'super_admin')
+    on conflict (id) do nothing;
+    return new;
+  end if;
+
+  select * into v_inv
+  from public.invites
+  where lower(email) = lower(new.email) and status = 'pending'
+  order by created_at desc
+  limit 1;
+
+  if v_inv.id is not null then
+    insert into public.profiles (id, email, full_name, role, company_id)
+    values (new.id, new.email,
+            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),
+            v_inv.role, v_inv.company_id)
+    on conflict (id) do nothing;
+
+    update public.invites
+       set status = 'accepted', accepted_at = now()
+     where id = v_inv.id;
+  else
+    insert into public.profiles (id, email, full_name, role)
+    values (new.id, new.email,
+            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),
+            'user')
+    on conflict (id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- 6) updated_at 自动维护
+-- ---------------------------------------------------------------------------
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_touch on public.orders;
+create trigger orders_touch
+  before update on public.orders
+  for each row execute function public.touch_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- 7) 权限判定函数（security definer：绕过 RLS 读取当前用户身份，避免策略递归）
+-- ---------------------------------------------------------------------------
+create or replace function public.fn_role()
+returns text language sql stable security definer set search_path = public as $$
+  select role from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.fn_company_id()
+returns uuid language sql stable security definer set search_path = public as $$
+  select company_id from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.fn_is_super()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'super_admin' and status = 'active'
+  );
+$$;
+
+create or replace function public.fn_is_company_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'company_admin' and status = 'active'
+  );
+$$;
+
+-- 注册前校验邮箱是否被邀请（只返回布尔值，不泄露邀请详情）
+create or replace function public.check_invite(p_email text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.invites
+    where lower(email) = lower(p_email) and status = 'pending'
+  );
+$$;
+
+-- 是否允许“首个管理员”注册（系统中还没有任何用户时为 true）
+create or replace function public.first_admin_available()
+returns boolean language sql stable security definer set search_path = public as $$
+  select not exists (select 1 from public.profiles);
+$$;
+
+grant execute on function public.check_invite(text)      to anon, authenticated;
+grant execute on function public.first_admin_available() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8) 仪表盘统计（security invoker：RLS 照常生效，不同角色只统计自己看得到的数据）
+-- ---------------------------------------------------------------------------
+create or replace function public.dashboard_stats(p_days int default 7, p_tz text default 'Asia/Shanghai')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with params as (
+    select least(greatest(coalesce(p_days, 7), 1), 90) as days,
+           coalesce(nullif(trim(p_tz), ''), 'Asia/Shanghai') as tz
+  ),
+  tzd as (
+    select days, tz, (now() at time zone tz)::date as d_today
+    from params
+  ),
+  bounds as (
+    select days, tz, d_today,
+           date_trunc('month', d_today::timestamp)::date as month_start,
+           (d_today - (days - 1))                        as first_day
+    from tzd
+  ),
+  loc as (
+    select o.*,
+           (o.ordered_at at time zone (select tz from params))::date as local_day
+    from public.orders o
+  ),
+  agg as (
+    select count(*)::int                                            as total,
+           coalesce(sum(l.amount), 0)::numeric                      as amount,
+           (count(*) filter (where l.status = 'pending'))::int      as pending,
+           (count(*) filter (where l.status = 'confirmed'))::int    as confirmed,
+           (count(*) filter (where l.status = 'shipped'))::int      as shipped,
+           (count(*) filter (where l.status = 'completed'))::int    as completed,
+           (count(*) filter (where l.status = 'cancelled'))::int    as cancelled,
+           (count(*) filter (where l.local_day >= b.month_start))::int as month_count,
+           coalesce(sum(l.amount) filter (where l.local_day >= b.month_start), 0)::numeric as month_amount
+    from loc l cross join bounds b
+  ),
+  days as (
+    select g::date as d
+    from bounds b,
+         generate_series(b.first_day::timestamp, b.d_today::timestamp, interval '1 day') g
+  ),
+  daily as (
+    select days.d as day,
+           count(l.id)::int                    as cnt,
+           coalesce(sum(l.amount), 0)::numeric as amount
+    from days
+    left join loc l on l.local_day = days.d
+    group by days.d
+    order by days.d
+  )
+  select jsonb_build_object(
+    'agg',   (select to_jsonb(agg) from agg),
+    'daily', (select coalesce(
+                jsonb_agg(jsonb_build_object('day', day, 'count', cnt, 'amount', amount) order by day),
+                '[]'::jsonb)
+              from daily)
+  );
+$$;
+
+grant execute on function public.dashboard_stats(int, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 9) 开启行级安全（RLS）
+-- ---------------------------------------------------------------------------
+alter table public.companies enable row level security;
+alter table public.profiles  enable row level security;
+alter table public.invites   enable row level security;
+alter table public.orders    enable row level security;
+
+-- 基础表权限（真正的过滤由下面的 RLS 策略完成）
+grant select, insert, update, delete
+  on public.companies, public.profiles, public.invites, public.orders
+  to authenticated;
+
+-- --------------------------- 公司 companies --------------------------------
+drop policy if exists companies_select on public.companies;
+create policy companies_select on public.companies
+  for select to authenticated
+  using ( public.fn_is_super() or id = public.fn_company_id() );
+
+drop policy if exists companies_write on public.companies;
+create policy companies_write on public.companies
+  for all to authenticated
+  using ( public.fn_is_super() )
+  with check ( public.fn_is_super() );
+
+-- --------------------------- 用户 profiles --------------------------------
+-- 本人可读；超管可读全部；公司管理员可读本公司成员
+drop policy if exists profiles_select on public.profiles;
+create policy profiles_select on public.profiles
+  for select to authenticated
+  using (
+    id = auth.uid()
+    or public.fn_is_super()
+    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
+  );
+
+-- 超管可改全部；公司管理员只能改本公司成员，且不能碰超级管理员
+drop policy if exists profiles_update on public.profiles;
+create policy profiles_update on public.profiles
+  for update to authenticated
+  using (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin()
+         and company_id = public.fn_company_id()
+         and role <> 'super_admin' )
+  )
+  with check (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin()
+         and company_id = public.fn_company_id()
+         and role <> 'super_admin' )
+  );
+
+drop policy if exists profiles_delete on public.profiles;
+create policy profiles_delete on public.profiles
+  for delete to authenticated
+  using ( public.fn_is_super() );
+
+-- --------------------------- 邀请 invites --------------------------------
+drop policy if exists invites_select on public.invites;
+create policy invites_select on public.invites
+  for select to authenticated
+  using ( public.fn_is_super()
+          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
+
+drop policy if exists invites_insert on public.invites;
+create policy invites_insert on public.invites
+  for insert to authenticated
+  with check (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin()
+         and company_id = public.fn_company_id()
+         and role <> 'super_admin' )
+  );
+
+drop policy if exists invites_update on public.invites;
+create policy invites_update on public.invites
+  for update to authenticated
+  using ( public.fn_is_super()
+          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) )
+  with check ( public.fn_is_super()
+          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
+
+drop policy if exists invites_delete on public.invites;
+create policy invites_delete on public.invites
+  for delete to authenticated
+  using ( public.fn_is_super()
+          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
+
+-- --------------------------- 订单 orders --------------------------------
+-- 超管看全部；公司管理员看本公司；普通用户只看自己的
+drop policy if exists orders_select on public.orders;
+create policy orders_select on public.orders
+  for select to authenticated
+  using (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
+    or ( company_id = public.fn_company_id() and user_id = auth.uid() )
+  );
+
+-- 录入：公司必须是自己的公司；普通用户只能录自己的单
+drop policy if exists orders_insert on public.orders;
+create policy orders_insert on public.orders
+  for insert to authenticated
+  with check (
+    public.fn_is_super()
+    or ( company_id = public.fn_company_id()
+         and ( public.fn_is_company_admin() or user_id = auth.uid() ) )
+  );
+
+-- 修改：仅超管 / 本公司管理员（普通用户只能查看和录入）
+drop policy if exists orders_update on public.orders;
+create policy orders_update on public.orders
+  for update to authenticated
+  using (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
+  )
+  with check (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
+  );
+
+drop policy if exists orders_delete on public.orders;
+create policy orders_delete on public.orders
+  for delete to authenticated
+  using (
+    public.fn_is_super()
+    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
+  );
+
+-- ---------------------------------------------------------------------------
+-- 10) 收尾：把控制台手动创建的历史账号补一份档案（可选）
+-- ---------------------------------------------------------------------------
+insert into public.profiles (id, email, full_name)
+select u.id, u.email,
+       coalesce(nullif(u.raw_user_meta_data->>'full_name',''), split_part(u.email,'@',1))
+from auth.users u
+on conflict (id) do nothing;
+
+-- 如需手动指定超级管理员（把邮箱换成你的账号）：
+-- update public.profiles set role = 'super_admin' where email = 'you@example.com';
+
+-- ============================================================================
+-- 初始化完成 ✅  接下来：登录系统 → 公司管理 → 新建公司 → 用户管理 → 邀请用户
+-- ============================================================================`;
+
+/* ----------------------------------------------------------------------------
+ * 3. 常量与状态
+ * -------------------------------------------------------------------------- */
+const STATUS = {
+  pending:   { label: '待处理', cls: 'warn' },
+  confirmed: { label: '已确认', cls: 'info' },
+  shipped:   { label: '已发货', cls: 'blue' },
+  completed: { label: '已完成', cls: 'ok' },
+  cancelled: { label: '已取消', cls: 'muted' },
+};
+
+const ROLE = {
+  super_admin:   { label: '超级管理员', cls: 'blue' },
+  company_admin: { label: '公司管理员', cls: 'info' },
+  user:          { label: '普通用户', cls: 'muted' },
+};
+
+const ICONS = {
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/></svg>',
+  orders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  company: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01M9 13h.01M15 13h.01"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+};
+
+const VIEW_META = {
+  dashboard: {
+    icon: 'dash', label: '仪表盘',
+    title: '仪表盘',
+    sub: () => isSuper() ? '全平台业务概览' : '本公司业务概览',
+  },
+  orders: {
+    icon: 'orders', label: '订单管理',
+    title: '订单管理',
+    sub: () => isSuper() ? '查看并管理所有公司的订单' : '查看并管理本公司订单',
+  },
+  users: {
+    icon: 'users', label: '用户管理',
+    title: '用户管理',
+    sub: () => isSuper() ? '管理全部账号、角色与公司归属' : '管理本公司成员与角色',
+  },
+  companies: {
+    icon: 'company', label: '公司管理',
+    title: '公司管理',
+    sub: () => '新增、编辑、停用公司',
+  },
+  setup: {
+    icon: 'gear', label: '系统配置',
+    title: '系统配置',
+    sub: () => 'Supabase 连接状态与数据库初始化脚本',
+  },
+};
+
+const state = {
+  session: null,
+  me: null,
+  company: null,
+  companies: [],
+  companyMap: {},
+  userCount: 0,
+  stats: null,
+  view: 'dashboard',
+  orders: { rows: [], page: 0, size: 10, count: 0 },
+  filters: { q: '', status: '', company: '', from: '', to: '' },
+  users: [], invites: [],
+  userQ: '', companyQ: '',
+};
+
+/* ----------------------------------------------------------------------------
+ * 4. 小工具
+ * -------------------------------------------------------------------------- */
+const $  = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function money(v) {
+  const n = Number(v) || 0;
+  return '¥' + n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function moneyShort(v) {
+  const n = Number(v) || 0;
+  if (n >= 10000) return '¥' + (n / 10000).toFixed(1) + '万';
+  if (n >= 1000) return '¥' + (n / 1000).toFixed(1) + 'k';
+  return '¥' + Math.round(n);
+}
+
+function num(v) {
+  return (Number(v) || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
+
+function fmtDate(v, withTime) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  const p = n => String(n).padStart(2, '0');
+  const base = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  return withTime === false ? base : base + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+/* datetime-local 输入框需要本地时间格式 */
+function toLocalInput(v) {
+  const d = v ? new Date(v) : new Date();
+  if (isNaN(d.getTime())) return toLocalInput(null);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function clientTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+  } catch (e) {
+    return 'Asia/Shanghai';
+  }
+}
+
+/* Supabase / Postgres 错误信息中文化 */
+function errMsg(e) {
+  const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || '未知错误';
+  const map = {
+    'Invalid login credentials': '邮箱或密码不正确',
+    'Email not confirmed': '邮箱还未验证，请先到邮箱点击确认链接',
+    'User already registered': '该邮箱已注册，请直接登录',
+    'Invalid API key': 'Supabase anon key 不正确，请检查配置',
+    'supabaseKey is required': '请先在文件顶部填写 Supabase URL 与 anon key',
+    'Failed to fetch': '网络请求失败，请检查网络或 Supabase URL',
+    'row-level security': '没有权限执行该操作（被 RLS 策略拒绝）',
+  };
+  for (const k in map) {
+    if (String(raw).indexOf(k) !== -1) return map[k];
+  }
+  if (String(raw).indexOf('JWT') !== -1) return '登录状态已过期，请重新登录';
+  if (String(raw).indexOf('duplicate key') !== -1) return '数据重复：公司名称或编号已存在';
+  if (String(raw).indexOf('does not exist') !== -1 && String(raw).indexOf('function') !== -1) {
+    return '数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）';
+  }
+  return String(raw);
+}
+
+/* 轻提示 */
+function toast(message, type) {
+  const host = $('#toastHost');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || '');
+  el.textContent = message;
+  host.appendChild(el);
+  setTimeout(function () {
+    el.classList.add('out');
+    setTimeout(function () { el.remove(); }, 220);
+  }, 3200);
+}
+
+/* 顶部细进度条 */
+let busyDepth = 0;
+function setBusy(on) {
+  busyDepth = Math.max(0, busyDepth + (on ? 1 : -1));
+  const bar = $('#progress');
+  if (!bar) return;
+  if (busyDepth > 0) {
+    bar.classList.add('on');
+    bar.style.width = '45%';
+  } else {
+    bar.style.width = '100%';
+    setTimeout(function () {
+      bar.classList.remove('on');
+      bar.style.width = '0';
+    }, 220);
+  }
+}
+
+function formError(box, msg) {
+  if (box) box.textContent = msg || '';
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. Supabase 客户端
+ * -------------------------------------------------------------------------- */
+let sb = null;
+
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = function () { reject(new Error('资源加载失败: ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureSdk() {
+  if (window.supabase && window.supabase.createClient) return true;
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js',
+  ];
+  for (let i = 0; i < sources.length; i++) {
+    try {
+      await loadScript(sources[i]);
+      if (window.supabase && window.supabase.createClient) return true;
+    } catch (e) { /* 换下一个 CDN */ }
+  }
+  return false;
+}
+
+function createSupa() {
+  if (!isConfigured) return null;
+  if (!window.supabase || !window.supabase.createClient) return null;
+  return window.supabase.createClient(CFG_URL, CFG_ANON, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
+}
+
+/* 角色判断 */
+function isSuper()  { return !!state.me && state.me.role === 'super_admin'; }
+function isAdmin()  { return !!state.me && state.me.role === 'company_admin'; }
+function isStaff()  { return isSuper() || isAdmin(); }
+function myCompanyId() { return state.me ? state.me.company_id : null; }
+
+/* 订单操作权限（与数据库 RLS 保持一致） */
+function canEditOrder(o) {
+  if (!state.me) return false;
+  if (isSuper()) return true;
+  return isAdmin() && o.company_id === myCompanyId();
+}
+
+/* ----------------------------------------------------------------------------
+ * 6. 弹窗 / 确认框
+ * -------------------------------------------------------------------------- */
+function syncScrollLock() {
+  const open = !$('#modalHost').hidden || !$('#confirmHost').hidden;
+  document.body.classList.toggle('no-scroll', open);
+}
+
+function openModal(title, html, size) {
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = html;
+  $('#modalHost').querySelector('.modal').className = 'modal' + (size ? ' ' + size : '');
+  $('#modalHost').hidden = false;
+  syncScrollLock();
+  setTimeout(function () {
+    const first = $('#modalBody input:not([type=hidden]), #modalBody select, #modalBody textarea');
+    if (first) first.focus();
+  }, 60);
+}
+
+function closeModal() {
+  $('#modalHost').hidden = true;
+  $('#modalBody').innerHTML = '';
+  syncScrollLock();
+}
+
+let confirmResolve = null;
+
+function confirmAction(opts) {
+  const o = opts || {};
+  return new Promise(function (resolve) {
+    confirmResolve = resolve;
+    $('#confirmTitle').textContent = o.title || '确认操作';
+    $('#confirmText').textContent = o.text || '';
+    const ok = $('#confirmOk');
+    ok.textContent = o.okText || '确定';
+    ok.className = 'btn ' + (o.danger ? 'danger' : 'primary');
+    const extra = $('#confirmExtra');
+    if (o.requireText) {
+      extra.innerHTML = '<p class="hint">请输入 <b>' + esc(o.requireText) +
+        '</b> 以确认：</p><input class="input" id="confirmInput" autocomplete="off" placeholder="' +
+        esc(o.requireText) + '" style="margin-top:8px">';
+      ok.disabled = true;
+      const inp = $('#confirmInput');
+      inp.addEventListener('input', function () {
+        ok.disabled = inp.value.trim() !== o.requireText;
+      });
+    } else {
+      extra.innerHTML = '';
+      ok.disabled = false;
+    }
+    $('#confirmHost').hidden = false;
+    syncScrollLock();
+  });
+}
+
+function resolveConfirm(value) {
+  $('#confirmHost').hidden = true;
+  syncScrollLock();
+  if (confirmResolve) {
+    const fn = confirmResolve;
+    confirmResolve = null;
+    fn(value);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * 7. 登录 / 注册 / 会话
+ * -------------------------------------------------------------------------- */
+function switchAuthTab(tab) {
+  $$('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.tab === tab); });
+  $('#loginForm').hidden = tab !== 'login';
+  $('#registerForm').hidden = tab !== 'register';
+  $('#loginError').textContent = '';
+  $('#registerError').textContent = '';
+}
+
+function showAuth(opts) {
+  const o = opts || {};
+  state.session = null;
+  state.me = null;
+  state.company = null;
+  $('#appShell').hidden = true;
+  $('#blockedScreen').hidden = true;
+  $('#authScreen').hidden = false;
+
+  /* 还没连接 Supabase：只显示「粘贴密钥」面板，不显示登录表单 */
+  const needConfig = !isConfigured;
+  $('#cfgPanel').hidden = !needConfig;
+  $('#authTabsWrap').hidden = needConfig;
+  if (needConfig) {
+    $('#authBanner').hidden = true;
+    $('#cfgError').textContent = o.error || '';
+    setTimeout(function () { $('#cfgUrl').focus(); }, 80);
+    return;
+  }
+
+  const banner = $('#authBanner');
+  /* 连接信息是从浏览器本地填的，就给一个「填错了重填」的入口 */
+  const fromLocal = !!(savedCfg && savedCfg.url);
+  $('#footEdit').hidden = !fromLocal;
+  $('#footSep').hidden = !fromLocal;
+
+  if (o.sdkError) {
+    banner.hidden = false;
+    banner.className = 'auth-banner danger';
+    banner.innerHTML = '<b>Supabase SDK 加载失败：</b>请检查网络后刷新页面。';
+  } else if (o.error) {
+    banner.hidden = false;
+    banner.className = 'auth-banner danger';
+    banner.textContent = o.error;
+  } else {
+    banner.hidden = true;
+  }
+
+  $('#loginError').textContent = '';
+  const lf = $('#loginForm');
+  if (lf) lf.reset();
+
+  probeFirstAdmin();
+}
+
+/* 检测数据库是否就绪 / 是否允许首个管理员注册 */
+async function probeFirstAdmin() {
+  if (!sb) return;
+  try {
+    const res = await sb.rpc('first_admin_available');
+    if (res.error) throw res.error;
+    if (res.data === true) {
+      $('#registerHint').innerHTML =
+        '<b>首次初始化：</b>系统中还没有任何用户，现在注册的第一个账号将自动成为<b>超级管理员</b>。';
+      switchAuthTab('register');
+    } else {
+      $('#registerHint').textContent =
+        '注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。';
+    }
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    const banner = $('#authBanner');
+    banner.hidden = false;
+    if (msg.indexOf('does not exist') !== -1 || msg.indexOf('function') !== -1) {
+      banner.className = 'auth-banner';
+      banner.innerHTML = '<b>数据库还没初始化：</b>先执行「查看建表 SQL / 配置说明」里的初始化 SQL，然后刷新本页。';
+    } else {
+      banner.className = 'auth-banner danger';
+      banner.innerHTML = '<b>连不上这个 Supabase 项目：</b>' + esc(errMsg(e)) +
+        '。请确认 Project URL 与 anon key 复制完整' +
+        (savedCfg && savedCfg.url ? '，可点下方「连接填错了？重新填写」。' : '。');
+    }
+  }
+}
+
+/* 登录页「保存并连接」：把 URL / anon key 存进浏览器本地，然后重载页面 */
+function saveCfg() {
+  const url = $('#cfgUrl').value.trim().replace(/\/+$/, '');
+  const key = $('#cfgKey').value.trim();
+  const err = $('#cfgError');
+  err.textContent = '';
+
+  if (!isValidSupabaseUrl(url)) {
+    err.textContent = 'Project URL 格式不对，应形如 https://abcdefgh.supabase.co';
+    return;
+  }
+  if (key.length < 30) {
+    err.textContent = 'anon key 看起来不完整，请回 Project Settings → API 重新复制整串';
+    return;
+  }
+
+  try {
+    localStorage.setItem(CFG_STORE_KEY, JSON.stringify({ url: url, key: key }));
+  } catch (e) {
+    err.textContent = '浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量';
+    return;
+  }
+  location.reload();
+}
+
+/* 「系统配置」页：清掉本地保存的连接信息，回到填写面板 */
+function editCfg() {
+  try { localStorage.removeItem(CFG_STORE_KEY); } catch (e) { /* 忽略 */ }
+  location.reload();
+}
+
+async function doLogin(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = $('#loginBtn');
+  const err = $('#loginError');
+  err.textContent = '';
+
+  if (!isConfigured) {
+    err.textContent = '请先在文件顶部填写 Supabase URL 与 anon key（见「系统配置」说明）';
+    return;
+  }
+  const email = form.email.value.trim();
+  const password = form.password.value;
+  if (!email || !password) {
+    err.textContent = '请输入邮箱和密码';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '登录中…';
+  try {
+    const res = await sb.auth.signInWithPassword({ email: email, password: password });
+    if (res.error) throw res.error;
+    if (!res.data.session) throw new Error('登录失败，请重试');
+    state.session = res.data.session;
+    await enterApp();
+  } catch (e) {
+    err.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '登录';
+  }
+}
+
+async function doRegister(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = $('#registerBtn');
+  const err = $('#registerError');
+  err.textContent = '';
+
+  if (!isConfigured) {
+    err.textContent = '请先在文件顶部填写 Supabase URL 与 anon key';
+    return;
+  }
+
+  const name = form.full_name.value.trim();
+  const email = form.email.value.trim().toLowerCase();
+  const pwd = form.password.value;
+  const pwd2 = form.password2.value;
+
+  if (!name) { err.textContent = '请填写姓名'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = '邮箱格式不正确'; return; }
+  if (pwd.length < 6) { err.textContent = '密码至少 6 位'; return; }
+  if (pwd !== pwd2) { err.textContent = '两次输入的密码不一致'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '处理中…';
+  try {
+    /* 先确认：要么是首位管理员，要么收到了邀请 */
+    const [inv, first] = await Promise.all([
+      sb.rpc('check_invite', { p_email: email }),
+      sb.rpc('first_admin_available'),
+    ]);
+    if (inv.error) throw inv.error;
+    if (first.error) throw first.error;
+    if (!inv.data && !first.data) {
+      throw new Error('该邮箱未获得邀请，请联系公司管理员在「用户管理」中邀请你');
+    }
+
+    const res = await sb.auth.signUp({
+      email: email,
+      password: pwd,
+      options: { data: { full_name: name } },
+    });
+    if (res.error) throw res.error;
+
+    if (res.data.session) {
+      state.session = res.data.session;
+      toast(first.data ? '初始化完成，你已成为超级管理员' : '注册成功', 'ok');
+      await enterApp();
+    } else {
+      toast('注册成功！请到邮箱点击确认链接后再登录', 'ok');
+      switchAuthTab('login');
+      form.reset();
+    }
+  } catch (e) {
+    err.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '创建账号';
+  }
+}
+
+async function doLogout() {
+  const ok = await confirmAction({
+    title: '退出登录',
+    text: '确定要退出当前账号吗？',
+    okText: '退出',
+  });
+  if (!ok) return;
+  try { await sb.auth.signOut(); } catch (e) { /* 忽略 */ }
+  state.session = null;
+  state.me = null;
+  state.company = null;
+  state.orders = { rows: [], page: 0, size: 10, count: 0 };
+  state.stats = null;
+  state.users = [];
+  state.invites = [];
+  closeModal();
+  showAuth();
+}
+
+/* 拉取当前登录用户的档案 */
+async function fetchMe() {
+  const res = await sb.from('profiles').select('*').eq('id', state.session.user.id).maybeSingle();
+  if (res.error) throw res.error;
+  if (!res.data) {
+    throw new Error('账号资料不存在。请确认已执行初始化 SQL，或联系超级管理员补建档案。');
+  }
+  return res.data;
+}
+
+async function enterApp() {
+  setBusy(true);
+  try {
+    const me = await fetchMe();
+    state.me = me;
+
+    if (me.status !== 'active') {
+      showBlocked('账号已停用', '该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。');
+      return;
+    }
+    if (me.role !== 'super_admin' && !me.company_id) {
+      showBlocked('账号尚未分配公司', '你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员为你在「用户管理」中分配公司。');
+      return;
+    }
+
+    await loadCompanies();
+    state.company = me.company_id ? state.companyMap[me.company_id] : null;
+
+    buildShell();
+    $('#authScreen').hidden = true;
+    $('#blockedScreen').hidden = true;
+    $('#appShell').hidden = false;
+
+    await switchView('dashboard');
+  } catch (e) {
+    console.error(e);
+    try { await sb.auth.signOut(); } catch (e2) { /* 忽略 */ }
+    showAuth({ error: errMsg(e) });
+  } finally {
+    setBusy(false);
+  }
+}
+
+function showBlocked(title, text) {
+  $('#authScreen').hidden = true;
+  $('#appShell').hidden = true;
+  $('#blockedScreen').hidden = false;
+  $('#blockedTitle').textContent = title;
+  $('#blockedText').textContent = text;
+}
+
+/* ----------------------------------------------------------------------------
+ * 8. 应用外壳
+ * -------------------------------------------------------------------------- */
+function navItems() {
+  const list = ['dashboard', 'orders'];
+  if (isStaff()) list.push('users');
+  if (isSuper()) list.push('companies');
+  list.push('setup');
+  return list;
+}
+
+function buildShell() {
+  document.body.classList.toggle('is-super', isSuper());
+  document.body.classList.toggle('is-staff', isStaff());
+
+  $('#navList').innerHTML = navItems().map(function (id) {
+    const m = VIEW_META[id];
+    return '<button class="nav-item" type="button" data-nav="' + id + '">' +
+      ICONS[m.icon] + '<span>' + m.label + '</span></button>';
+  }).join('');
+
+  const name = state.me.full_name || state.me.email || '用户';
+  $('#avatar').textContent = String(name).trim().charAt(0).toUpperCase() || 'U';
+  $('#userName').textContent = name;
+  $('#userRole').textContent = (ROLE[state.me.role] && ROLE[state.me.role].label) || state.me.role;
+  $('#sideCompany').textContent = isSuper() ? '全平台' : (state.company ? state.company.name : '未分配公司');
+  $('#btnMenu').innerHTML = ICONS.menu;
+}
+
+function openSidebar() {
+  $('#sidebar').classList.add('open');
+  $('#scrim').classList.add('on');
+}
+
+function closeSidebar() {
+  $('#sidebar').classList.remove('open');
+  $('#scrim').classList.remove('on');
+}
+
+async function switchView(id) {
+  if (!VIEW_META[id]) return;
+  if ((id === 'companies' || id === 'users') && !isStaff()) return;
+  if (id === 'companies' && !isSuper()) return;
+
+  state.view = id;
+  $$('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + id); });
+  $$('.nav-item').forEach(function (n) { n.classList.toggle('active', n.dataset.nav === id); });
+
+  const meta = VIEW_META[id];
+  $('#topbarTitle').textContent = meta.title;
+  $('#topbarSub').textContent = meta.sub();
+
+  const actions = {
+    dashboard: '<button class="btn ghost sm" type="button" data-act="refresh">刷新</button>',
+    orders: '<button class="btn primary sm" type="button" data-act="new-order">+ 新建订单</button>',
+    users: '<button class="btn primary sm" type="button" data-act="invite">+ 邀请用户</button>',
+    companies: '<button class="btn primary sm" type="button" data-act="new-company">+ 新建公司</button>',
+    setup: '',
+  };
+  $('#topbarActions').innerHTML = actions[id] || '';
+
+  closeSidebar();
+
+  try {
+    if (id === 'dashboard') await refreshDashboard();
+    else if (id === 'orders') await loadOrders(0);
+    else if (id === 'users') await loadUsers();
+    else if (id === 'companies') { await loadCompanies(); renderCompanies(); }
+    else if (id === 'setup') renderSetup();
+  } catch (e) {
+    toast(errMsg(e), 'error');
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * 9. 公司数据
+ * -------------------------------------------------------------------------- */
+async function loadCompanies() {
+  if (!sb || !state.me) return state.companies;
+  const res = await sb.from('companies').select('*').order('created_at', { ascending: true });
+  if (res.error) throw res.error;
+  state.companies = res.data || [];
+  state.companyMap = {};
+  state.companies.forEach(function (c) { state.companyMap[c.id] = c; });
+
+  /* 超级管理员的公司筛选下拉 */
+  const sel = $('#fcompany');
+  if (sel && isSuper()) {
+    const cur = state.filters.company;
+    sel.innerHTML = '<option value="">全部公司</option>' + state.companies.map(function (c) {
+      return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+    }).join('');
+    sel.value = cur;
+  }
+  return state.companies;
+}
+
+function companyName(id) {
+  return (state.companyMap[id] && state.companyMap[id].name) || '—';
+}
+
+/* ----------------------------------------------------------------------------
+ * 10. 仪表盘
+ * -------------------------------------------------------------------------- */
+async function refreshDashboard() {
+  setBusy(true);
+  try {
+    const res = await sb.rpc('dashboard_stats', { p_days: 7, p_tz: clientTimeZone() });
+    if (res.error) throw res.error;
+    state.stats = res.data || { agg: {}, daily: [] };
+
+    const recent = await sb.from('orders').select('*')
+      .order('ordered_at', { ascending: false }).limit(6);
+    if (recent.error) throw recent.error;
+
+    if (isSuper()) {
+      const cnt = await sb.from('profiles').select('id', { count: 'exact', head: true });
+      state.userCount = (cnt && cnt.count) || 0;
+    }
+    renderDashboard(recent.data || []);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderDashboard(recent) {
+  const agg = (state.stats && state.stats.agg) || {};
+  const daily = (state.stats && state.stats.daily) || [];
+  const name = state.me.full_name || state.me.email;
+  const h = new Date().getHours();
+  const greet = h < 6 ? '凌晨好' : h < 12 ? '上午好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+  const scopeText = isSuper() ? '全平台数据' : (state.company ? state.company.name : '未分配公司');
+  const scopeExtra = isSuper()
+    ? ' · ' + state.companies.length + ' 家公司 · ' + state.userCount + ' 位用户'
+    : '';
+  const today = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+
+  $('#helloCard').innerHTML =
+    '<div class="hello-main">' +
+      '<div class="hello-kicker">' + esc(greet) + '，' + esc(name) + '</div>' +
+      '<div class="hello-sub">' + esc((ROLE[state.me.role] || {}).label || '') + ' · ' +
+        esc(scopeText) + esc(scopeExtra) + ' · ' + esc(today) + '</div>' +
+    '</div>' +
+    '<div class="hello-actions">' +
+      '<button class="btn light" type="button" data-act="new-order">+ 新建订单</button>' +
+      (isStaff() ? '<button class="btn light" type="button" data-act="invite">+ 邀请用户</button>' : '') +
+    '</div>';
+
+  const cards = [
+    { label: isSuper() ? '全平台订单' : '订单总数', value: num(agg.total), foot: '累计 ' + moneyShort(agg.amount), tone: '' },
+    { label: '本月订单', value: num(agg.month_count), foot: '本月新增', tone: 'info' },
+    { label: '待处理', value: num(agg.pending), foot: '需要跟进', tone: 'warn' },
+    { label: '本月金额', value: money(agg.month_amount), foot: '本月成交', tone: 'ok' },
+  ];
+
+  $('#statGrid').innerHTML = cards.map(function (c) {
+    return '<div class="stat ' + c.tone + '">' +
+      '<div class="stat-label">' + esc(c.label) + '</div>' +
+      '<div class="stat-value">' + c.value + '</div>' +
+      '<div class="stat-foot">' + esc(c.foot) + '</div></div>';
+  }).join('');
+
+  /* 近 7 天柱状图 */
+  const max = Math.max.apply(null, daily.map(function (d) { return Number(d.amount) || 0; }).concat([1]));
+  $('#chartBars').innerHTML = '<div class="bars">' + daily.map(function (d) {
+    const amount = Number(d.amount) || 0;
+    const hPct = amount > 0 ? Math.max(6, Math.round(amount / max * 100)) : 2;
+    const label = fmtDate(d.day, false).slice(5).replace('-', '/');
+    return '<div class="bar-col">' +
+      '<div class="bar-track"><div class="bar-fill" style="height:' + hPct + '%" title="' +
+        esc(fmtDate(d.day, false) + '：' + money(amount) + ' / ' + d.count + ' 单') + '">' +
+        (amount > 0 ? '<span class="bar-val">' + moneyShort(amount) + '</span>' : '') +
+      '</div></div>' +
+      '<div class="bar-x">' + esc(label) + '</div></div>';
+  }).join('') + '</div>';
+
+  /* 状态分布 */
+  const total = Number(agg.total) || 0;
+  $('#statusBars').innerHTML = Object.keys(STATUS).map(function (key) {
+    const s = STATUS[key];
+    const n = Number(agg[key]) || 0;
+    const pct = total > 0 ? (n / total * 100) : 0;
+    return '<div class="sbar">' +
+      '<div class="sbar-top"><span>' + s.label + '</span><b>' + num(n) + ' 单</b></div>' +
+      '<div class="sbar-track"><div class="sbar-fill ' + s.cls + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+      '</div>';
+  }).join('');
+
+  /* 最近订单 */
+  if (!recent.length) {
+    $('#recentTable').innerHTML = '<tbody><tr><td><div class="empty"><b>还没有订单</b>点击右上角「+ 新建订单」录入第一笔</div></td></tr></tbody>';
+  } else {
+    $('#recentTable').innerHTML =
+      '<thead><tr><th>客户</th><th>商品</th><th class="num">金额</th><th>状态</th><th>下单时间</th></tr></thead>' +
+      '<tbody>' + recent.map(function (o) {
+        const s = STATUS[o.status] || STATUS.pending;
+        return '<tr>' +
+          '<td><div class="cell-main">' + esc(o.customer_name) + '</div>' +
+            (o.customer_phone ? '<div class="cell-sub">' + esc(o.customer_phone) + '</div>' : '') + '</td>' +
+          '<td>' + esc(o.product_name) + '</td>' +
+          '<td class="num strong">' + money(o.amount) + '</td>' +
+          '<td><span class="badge ' + s.cls + '">' + s.label + '</span></td>' +
+          '<td class="muted nowrap">' + fmtDate(o.ordered_at) + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody>';
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * 11. 订单
+ * -------------------------------------------------------------------------- */
+async function loadOrders(page) {
+  if (!sb || !state.me) return;
+  const st = state.orders;
+  st.page = Math.max(0, page || 0);
+
+  let query = sb.from('orders').select('*', { count: 'exact' });
+
+  /* 数据隔离：非超管只能看到自己公司的数据（数据库 RLS 还会兜底） */
+  if (!isSuper()) query = query.eq('company_id', myCompanyId());
+
+  const f = state.filters;
+  if (f.company) query = query.eq('company_id', f.company);
+  if (f.status) query = query.eq('status', f.status);
+
+  const kw = f.q.replace(/[\\%,()*]/g, ' ').trim().slice(0, 40);
+  if (kw) {
+    query = query.or(
+      'customer_name.ilike.%' + kw + '%,product_name.ilike.%' + kw + '%,customer_phone.ilike.%' + kw + '%'
+    );
+  }
+  if (f.from) query = query.gte('ordered_at', new Date(f.from + 'T00:00:00').toISOString());
+  if (f.to) query = query.lte('ordered_at', new Date(f.to + 'T23:59:59.999').toISOString());
+
+  const from = st.page * st.size;
+  query = query.order('ordered_at', { ascending: false }).range(from, from + st.size - 1);
+
+  setBusy(true);
+  let res;
+  try {
+    res = await query;
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) throw res.error;
+
+  st.rows = res.data || [];
+  st.count = res.count || 0;
+
+  /* 当前页被删空时回退一页 */
+  if (!st.rows.length && st.page > 0) return loadOrders(st.page - 1);
+
+  renderOrders();
+}
+
+function renderOrders() {
+  const st = state.orders;
+  const showCompany = isSuper();
+
+  $('#ordersCount').textContent = '共 ' + st.count + ' 条';
+
+  if (!st.rows.length) {
+    $('#ordersTable').innerHTML = '<tbody><tr><td><div class="empty"><b>没有符合条件的订单</b>' +
+      '换个筛选条件，或点击「+ 新建订单」录入</div></td></tr></tbody>';
+    $('#ordersPager').innerHTML = '';
+    return;
+  }
+
+  const head = '<thead><tr>' +
+    '<th>订单号</th><th>客户</th><th>商品</th><th class="num">数量</th><th class="num">金额</th>' +
+    '<th>状态</th>' + (showCompany ? '<th>归属公司</th>' : '') +
+    '<th>下单时间</th><th class="ops">操作</th>' +
+    '</tr></thead>';
+
+  const body = '<tbody>' + st.rows.map(function (o) {
+    const s = STATUS[o.status] || STATUS.pending;
+    const ops = [];
+    if (canEditOrder(o)) {
+      ops.push('<button class="link" type="button" data-act="edit-order" data-id="' + o.id + '">编辑</button>');
+      ops.push('<button class="link danger" type="button" data-act="del-order" data-id="' + o.id + '">删除</button>');
+    }
+    return '<tr>' +
+      '<td class="mono muted" style="font-size:12px">' + esc(o.order_no || '—') + '</td>' +
+      '<td><div class="cell-main">' + esc(o.customer_name) + '</div>' +
+        (o.customer_phone ? '<div class="cell-sub">' + esc(o.customer_phone) + '</div>' : '') + '</td>' +
+      '<td>' + esc(o.product_name) + '</td>' +
+      '<td class="num">' + num(o.quantity) + '</td>' +
+      '<td class="num strong">' + money(o.amount) + '</td>' +
+      '<td><span class="badge ' + s.cls + '">' + s.label + '</span></td>' +
+      (showCompany ? '<td>' + esc(companyName(o.company_id)) + '</td>' : '') +
+      '<td class="muted nowrap">' + fmtDate(o.ordered_at) + '</td>' +
+      '<td class="ops">' + (ops.join('') || '<span class="muted">—</span>') + '</td>' +
+    '</tr>';
+  }).join('') + '</tbody>';
+
+  $('#ordersTable').innerHTML = head + body;
+
+  const totalPages = Math.max(1, Math.ceil(st.count / st.size));
+  $('#ordersPager').innerHTML =
+    '<div class="pager-info">第 ' + (st.page + 1) + ' / ' + totalPages + ' 页 · 共 ' + st.count + ' 条</div>' +
+    '<div class="pager-btns">' +
+      '<button class="btn sm" type="button" data-act="page" data-id="' + (st.page - 1) + '"' +
+        (st.page <= 0 ? ' disabled' : '') + '>上一页</button>' +
+      '<button class="btn sm" type="button" data-act="page" data-id="' + (st.page + 1) + '"' +
+        (st.page >= totalPages - 1 ? ' disabled' : '') + '>下一页</button>' +
+    '</div>';
+}
+
+function statusOptions(selected) {
+  return Object.keys(STATUS).map(function (k) {
+    return '<option value="' + k + '"' + (k === selected ? ' selected' : '') + '>' + STATUS[k].label + '</option>';
+  }).join('');
+}
+
+function openOrderModal(order) {
+  const editing = !!order;
+  const isSup = isSuper();
+  let companyField = '';
+
+  if (isSup) {
+    companyField =
+      '<label class="field span-2"><span>归属公司<em>*</em></span>' +
+        '<select class="select" name="company_id" required>' +
+          state.companies.map(function (c) {
+            const sel = (order ? order.company_id : (state.filters.company || '')) === c.id;
+            return '<option value="' + c.id + '"' + (sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+          }).join('') +
+        '</select></label>';
+  } else {
+    companyField =
+      '<label class="field span-2"><span>归属公司</span>' +
+        '<input class="input" value="' + esc(state.company ? state.company.name : '未分配公司') + '" disabled>' +
+      '</label>';
+  }
+
+  openModal(editing ? '编辑订单' : '新建订单',
+    '<form id="orderForm" data-id="' + (order ? order.id : '') + '" novalidate>' +
+      '<div class="form-grid">' +
+        '<label class="field"><span>客户姓名<em>*</em></span>' +
+          '<input class="input" name="customer_name" required maxlength="50" ' +
+            'value="' + esc(order ? order.customer_name : '') + '" placeholder="如：王女士"></label>' +
+        '<label class="field"><span>联系方式</span>' +
+          '<input class="input" name="customer_phone" maxlength="40" ' +
+            'value="' + esc(order ? order.customer_phone : '') + '" placeholder="手机号 / 微信"></label>' +
+        '<label class="field span-2"><span>商品名称<em>*</em></span>' +
+          '<input class="input" name="product_name" required maxlength="80" ' +
+            'value="' + esc(order ? order.product_name : '') + '" placeholder="如：A 款礼盒 × 2"></label>' +
+        '<label class="field"><span>数量<em>*</em></span>' +
+          '<input class="input" name="quantity" type="number" min="0" step="1" required ' +
+            'value="' + esc(order ? order.quantity : 1) + '"></label>' +
+        '<label class="field"><span>金额（元）<em>*</em></span>' +
+          '<input class="input" name="amount" type="number" min="0" step="0.01" required ' +
+            'value="' + esc(order ? order.amount : 0) + '"></label>' +
+        '<label class="field"><span>状态</span>' +
+          '<select class="select" name="status">' + statusOptions(order ? order.status : 'pending') + '</select></label>' +
+        '<label class="field"><span>下单时间<em>*</em></span>' +
+          '<input class="input" name="ordered_at" type="datetime-local" required ' +
+            'value="' + toLocalInput(order ? order.ordered_at : null) + '"></label>' +
+        companyField +
+        '<label class="field span-2"><span>备注</span>' +
+          '<textarea class="textarea" name="remark" rows="2" maxlength="300" ' +
+            'placeholder="选填">' + esc(order ? order.remark : '') + '</textarea></label>' +
+      '</div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>取消</button>' +
+        '<button class="btn primary" type="submit">保存</button>' +
+      '</div>' +
+    '</form>');
+
+  $('#orderForm').addEventListener('submit', saveOrder);
+}
+
+async function saveOrder(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+  const id = form.dataset.id || '';
+
+  const customerName = form.customer_name.value.trim();
+  const productName = form.product_name.value.trim();
+  const quantity = Number(form.quantity.value);
+  const amount = Number(form.amount.value);
+
+  if (!customerName) { errBox.textContent = '请填写客户姓名'; return; }
+  if (!productName) { errBox.textContent = '请填写商品名称'; return; }
+  if (!isFinite(quantity) || quantity < 0) { errBox.textContent = '数量必须是不小于 0 的数字'; return; }
+  if (!isFinite(amount) || amount < 0) { errBox.textContent = '金额必须是不小于 0 的数字'; return; }
+
+  const companyId = isSuper() ? form.company_id.value : myCompanyId();
+  if (!companyId) { errBox.textContent = '请选择归属公司'; return; }
+
+  const payload = {
+    company_id: companyId,
+    customer_name: customerName,
+    customer_phone: form.customer_phone.value.trim() || null,
+    product_name: productName,
+    quantity: quantity,
+    amount: amount,
+    status: form.status.value,
+    ordered_at: form.ordered_at.value ? new Date(form.ordered_at.value).toISOString() : new Date().toISOString(),
+    remark: form.remark.value.trim() || null,
+  };
+
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    let res;
+    if (id) {
+      res = await sb.from('orders').update(payload).eq('id', id);
+    } else {
+      payload.user_id = state.me.id;   /* 录入人 = 当前用户 */
+      res = await sb.from('orders').insert(payload);
+    }
+    if (res.error) throw res.error;
+
+    closeModal();
+    toast(id ? '订单已更新' : '订单已创建', 'ok');
+    if (state.view === 'orders') await loadOrders(id ? state.orders.page : 0);
+    refreshDashboard().catch(function (e) { console.warn(e); });
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存';
+  }
+}
+
+async function doDeleteOrder(id) {
+  const o = state.orders.rows.filter(function (r) { return r.id === id; })[0];
+  if (!o) return;
+  const ok = await confirmAction({
+    title: '删除订单',
+    text: '确定删除订单「' + (o.order_no || o.customer_name) + '」吗？删除后无法恢复。',
+    okText: '删除订单',
+    danger: true,
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('orders').delete().eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); return; }
+  toast('订单已删除', 'ok');
+  await loadOrders(state.orders.page);
+  refreshDashboard().catch(function () { /* 静默 */ });
+}
+
+function resetFilters() {
+  state.filters = { q: '', status: '', company: '', from: '', to: '' };
+  $('#fq').value = '';
+  $('#fstatus').value = '';
+  if ($('#fcompany')) $('#fcompany').value = '';
+  $('#ffrom').value = '';
+  $('#fto').value = '';
+  loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); });
+}
+
+/* ----------------------------------------------------------------------------
+ * 12. 用户与邀请
+ * -------------------------------------------------------------------------- */
+function canEditUser(u) {
+  if (!state.me || u.id === state.me.id) return false;
+  if (isSuper()) return true;
+  if (isAdmin()) return u.company_id === myCompanyId() && u.role !== 'super_admin';
+  return false;
+}
+
+function roleOptions(selected) {
+  const opts = [['company_admin', '公司管理员'], ['user', '普通用户']];
+  if (isSuper()) opts.unshift(['super_admin', '超级管理员']);
+  return opts.map(function (pair) {
+    return '<option value="' + pair[0] + '"' + (pair[0] === selected ? ' selected' : '') + '>' +
+      pair[1] + '</option>';
+  }).join('');
+}
+
+async function loadUsers() {
+  setBusy(true);
+  try {
+    let query = sb.from('profiles').select('*').order('created_at', { ascending: true });
+    if (!isSuper()) query = query.eq('company_id', myCompanyId());
+
+    const results = await Promise.all([
+      query,
+      sb.from('invites').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
+    ]);
+    if (results[0].error) throw results[0].error;
+    if (results[1].error) throw results[1].error;
+
+    state.users = results[0].data || [];
+    state.invites = results[1].data || [];
+    renderUsers();
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderUsers() {
+  const kw = state.userQ.trim().toLowerCase();
+  const list = state.users.filter(function (u) {
+    if (!kw) return true;
+    return String(u.full_name || '').toLowerCase().indexOf(kw) !== -1 ||
+           String(u.email || '').toLowerCase().indexOf(kw) !== -1;
+  });
+
+  $('#usersCount').textContent = '共 ' + list.length + ' 人';
+
+  if (!list.length) {
+    $('#usersTable').innerHTML = '<tbody><tr><td><div class="empty"><b>暂无成员</b>' +
+      '点击「+ 邀请用户」把成员拉进来</div></td></tr></tbody>';
+  } else {
+    const head = '<thead><tr><th>成员</th><th>角色</th>' + (isSuper() ? '<th>所属公司</th>' : '') +
+      '<th>状态</th><th>加入时间</th><th class="ops">操作</th></tr></thead>';
+
+    const body = '<tbody>' + list.map(function (u) {
+      const role = ROLE[u.role] || ROLE.user;
+      const editable = canEditUser(u);
+      const active = u.status === 'active';
+      const ops = [];
+
+      if (editable) {
+        ops.push('<button class="link" type="button" data-act="toggle-user" data-id="' + u.id + '">' +
+          (active ? '停用' : '启用') + '</button>');
+      }
+      if (isSuper() && u.id !== state.me.id) {
+        ops.push('<button class="link danger" type="button" data-act="del-user" data-id="' + u.id + '">删除</button>');
+      }
+
+      /* 超级管理员可以直接给成员分配 / 调整公司 */
+      let companyCell = '';
+      if (isSuper()) {
+        if (u.id === state.me.id) {
+          companyCell = '<td>' + esc(companyName(u.company_id)) + '</td>';
+        } else {
+          companyCell = '<td><select class="select select-sm" data-act="change-company" data-id="' + u.id + '">' +
+            '<option value=""' + (!u.company_id ? ' selected' : '') + '>未分配</option>' +
+            state.companies.map(function (c) {
+              return '<option value="' + c.id + '"' + (c.id === u.company_id ? ' selected' : '') + '>' +
+                esc(c.name) + '</option>';
+            }).join('') +
+            '</select></td>';
+        }
+      }
+
+      return '<tr>' +
+        '<td><div class="cell-main">' + esc(u.full_name || '未填写') +
+          (u.id === state.me.id ? ' <span class="badge soft">我</span>' : '') + '</div>' +
+          '<div class="cell-sub">' + esc(u.email || '') + '</div></td>' +
+        '<td>' + (editable
+          ? '<select class="select select-sm" data-act="change-role" data-id="' + u.id + '">' +
+              roleOptions(u.role) + '</select>'
+          : '<span class="badge ' + role.cls + '">' + role.label + '</span>') + '</td>' +
+        companyCell +
+        '<td><span class="badge ' + (active ? 'ok' : 'muted') + '">' + (active ? '正常' : '已停用') + '</span></td>' +
+        '<td class="muted nowrap">' + fmtDate(u.created_at, false) + '</td>' +
+        '<td class="ops">' + (ops.join('') || '<span class="muted">—</span>') + '</td>' +
+      '</tr>';
+    }).join('') + '</tbody>';
+
+    $('#usersTable').innerHTML = head + body;
+  }
+
+  /* 邀请列表 */
+  if (!state.invites.length) {
+    $('#invitesTable').innerHTML = '<tbody><tr><td><div class="empty"><b>没有待接受的邀请</b>' +
+      '邀请发出后，对方用该邮箱注册即自动加入</div></td></tr></tbody>';
+  } else {
+    const head = '<thead><tr><th>邮箱</th><th>角色</th>' + (isSuper() ? '<th>公司</th>' : '') +
+      '<th>邀请时间</th><th class="ops">操作</th></tr></thead>';
+    const body = '<tbody>' + state.invites.map(function (i) {
+      const role = ROLE[i.role] || ROLE.user;
+      return '<tr>' +
+        '<td><div class="cell-main">' + esc(i.email) + '</div></td>' +
+        '<td><span class="badge ' + role.cls + '">' + role.label + '</span></td>' +
+        (isSuper() ? '<td>' + esc(companyName(i.company_id)) + '</td>' : '') +
+        '<td class="muted nowrap">' + fmtDate(i.created_at) + '</td>' +
+        '<td class="ops"><button class="link danger" type="button" data-act="revoke-invite" data-id="' +
+          i.id + '">撤销</button></td>' +
+      '</tr>';
+    }).join('') + '</tbody>';
+    $('#invitesTable').innerHTML = head + body;
+  }
+}
+
+function openInviteModal() {
+  const isSup = isSuper();
+  const companyField = isSup
+    ? '<label class="field span-2"><span>加入公司<em>*</em></span><select class="select" name="company_id" required>' +
+        state.companies.map(function (c) {
+          const sel = c.id === (state.company ? state.company.id : '');
+          return '<option value="' + c.id + '"' + (sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+        }).join('') +
+      '</select></label>'
+    : '<label class="field span-2"><span>加入公司</span>' +
+        '<input class="input" value="' + esc(state.company ? state.company.name : '') + '" disabled></label>';
+
+  openModal('邀请用户',
+    '<form id="inviteForm" novalidate>' +
+      '<div class="form-grid">' +
+        '<label class="field span-2"><span>成员邮箱<em>*</em></span>' +
+          '<input class="input" name="email" type="email" required maxlength="120" ' +
+            'placeholder="对方注册时要使用的邮箱"></label>' +
+        '<label class="field"><span>角色</span>' +
+          '<select class="select" name="role">' +
+            (isSup ? '<option value="company_admin">公司管理员</option>' : '') +
+            '<option value="user" selected>普通用户</option>' +
+          '</select></label>' +
+        '<label class="field"><span>说明</span>' +
+          '<input class="input" value="邀请 7 天内有效" disabled></label>' +
+        companyField +
+      '</div>' +
+      '<p class="hint" style="margin-top:12px">对方打开本系统 → 注册 → 使用该邮箱创建账号，系统会自动写入角色与公司。</p>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>取消</button>' +
+        '<button class="btn primary" type="submit">发送邀请</button>' +
+      '</div>' +
+    '</form>');
+
+  $('#inviteForm').addEventListener('submit', saveInvite);
+}
+
+async function saveInvite(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+
+  const email = form.email.value.trim().toLowerCase();
+  const role = form.role.value;
+  const companyId = isSuper() ? form.company_id.value : myCompanyId();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errBox.textContent = '邮箱格式不正确'; return; }
+  if (!companyId) { errBox.textContent = '请选择公司'; return; }
+
+  const exists = state.users.filter(function (u) {
+    return String(u.email || '').toLowerCase() === email;
+  })[0];
+  if (exists) { errBox.textContent = '该邮箱已经是系统成员'; return; }
+
+  const dup = state.invites.filter(function (i) {
+    return String(i.email || '').toLowerCase() === email;
+  })[0];
+  if (dup) { errBox.textContent = '该邮箱已有一条待接受的邀请'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '发送中…';
+  try {
+    const res = await sb.from('invites').insert({
+      email: email,
+      role: role,
+      company_id: companyId,
+      invited_by: state.me.id,
+    });
+    if (res.error) throw res.error;
+    closeModal();
+    toast('邀请已创建，请通知对方用该邮箱注册', 'ok');
+    await loadUsers();
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '发送邀请';
+  }
+}
+
+async function changeRole(id, role) {
+  const u = state.users.filter(function (x) { return x.id === id; })[0];
+  if (!u) return;
+  const label = (ROLE[role] && ROLE[role].label) || role;
+  const ok = await confirmAction({
+    title: '修改角色',
+    text: '将「' + (u.full_name || u.email) + '」的角色改为「' + label + '」？',
+    okText: '确认修改',
+  });
+  if (!ok) { renderUsers(); return; }
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('profiles').update({ role: role }).eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); renderUsers(); return; }
+  toast('角色已更新', 'ok');
+  await loadUsers();
+}
+
+/* 超级管理员：调整成员所属公司 */
+async function changeUserCompany(id, companyId) {
+  const u = state.users.filter(function (x) { return x.id === id; })[0];
+  if (!u) return;
+  const label = companyId ? companyName(companyId) : '未分配';
+  const ok = await confirmAction({
+    title: '调整所属公司',
+    text: '将「' + (u.full_name || u.email) + '」调整到「' + label + '」？调整后该成员只能看到新公司的数据，原公司的订单将不可见。',
+    okText: '确认调整',
+  });
+  if (!ok) { renderUsers(); return; }
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('profiles').update({ company_id: companyId || null }).eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); renderUsers(); return; }
+  toast('所属公司已更新', 'ok');
+  await loadUsers();
+}
+
+async function toggleUser(id) {
+  const u = state.users.filter(function (x) { return x.id === id; })[0];
+  if (!u) return;
+  const next = u.status === 'active' ? 'disabled' : 'active';
+  const ok = await confirmAction({
+    title: next === 'disabled' ? '停用账号' : '启用账号',
+    text: next === 'disabled'
+      ? '停用后「' + (u.full_name || u.email) + '」将无法登录，历史数据会保留。'
+      : '恢复「' + (u.full_name || u.email) + '」的登录权限？',
+    okText: next === 'disabled' ? '停用' : '启用',
+    danger: next === 'disabled',
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('profiles').update({ status: next }).eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); return; }
+  toast(next === 'disabled' ? '账号已停用' : '账号已启用', 'ok');
+  await loadUsers();
+}
+
+async function deleteUser(id) {
+  const u = state.users.filter(function (x) { return x.id === id; })[0];
+  if (!u) return;
+  const ok = await confirmAction({
+    title: '删除成员',
+    text: '将删除「' + (u.full_name || u.email) + '」的档案，该账号将无法继续使用系统，其名下订单也会一并删除。此操作不可恢复，建议优先使用「停用」。',
+    okText: '确认删除',
+    danger: true,
+    requireText: u.email,
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('profiles').delete().eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); return; }
+  toast('成员已删除', 'ok');
+  await loadUsers();
+}
+
+async function revokeInvite(id) {
+  const ok = await confirmAction({
+    title: '撤销邀请',
+    text: '撤销后该邮箱将无法通过此邀请注册。',
+    okText: '撤销',
+    danger: true,
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('invites').update({ status: 'revoked' }).eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); return; }
+  toast('邀请已撤销', 'ok');
+  await loadUsers();
+}
+
+/* ----------------------------------------------------------------------------
+ * 13. 公司管理（超级管理员）
+ * -------------------------------------------------------------------------- */
+function companyUserCount() { return state.users.length; }
+
+function renderCompanies() {
+  const kw = state.companyQ.trim().toLowerCase();
+  const list = state.companies.filter(function (c) {
+    if (!kw) return true;
+    return String(c.name || '').toLowerCase().indexOf(kw) !== -1 ||
+           String(c.code || '').toLowerCase().indexOf(kw) !== -1;
+  });
+
+  $('#companiesCount').textContent = '共 ' + list.length + ' 家';
+
+  if (!list.length) {
+    $('#companiesTable').innerHTML = '<tbody><tr><td><div class="empty"><b>还没有公司</b>' +
+      '点击「+ 新建公司」创建第一家</div></td></tr></tbody>';
+    return;
+  }
+
+  const head = '<thead><tr><th>公司名称</th><th>编号</th><th>联系人</th><th>电话</th>' +
+    '<th>状态</th><th>创建时间</th><th class="ops">操作</th></tr></thead>';
+
+  const body = '<tbody>' + list.map(function (c) {
+    const active = c.status === 'active';
+    return '<tr>' +
+      '<td><div class="cell-main">' + esc(c.name) + '</div></td>' +
+      '<td class="mono muted" style="font-size:12px">' + esc(c.code || '—') + '</td>' +
+      '<td>' + esc(c.contact || '—') + '</td>' +
+      '<td>' + esc(c.phone || '—') + '</td>' +
+      '<td><span class="badge ' + (active ? 'ok' : 'muted') + '">' + (active ? '正常' : '停用') + '</span></td>' +
+      '<td class="muted nowrap">' + fmtDate(c.created_at, false) + '</td>' +
+      '<td class="ops">' +
+        '<button class="link" type="button" data-act="edit-company" data-id="' + c.id + '">编辑</button>' +
+        '<button class="link danger" type="button" data-act="del-company" data-id="' + c.id + '">删除</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('') + '</tbody>';
+
+  $('#companiesTable').innerHTML = head + body;
+}
+
+function openCompanyModal(company) {
+  const editing = !!company;
+  openModal(editing ? '编辑公司' : '新建公司',
+    '<form id="companyForm" data-id="' + (company ? company.id : '') + '" novalidate>' +
+      '<div class="form-grid">' +
+        '<label class="field span-2"><span>公司名称<em>*</em></span>' +
+          '<input class="input" name="name" required maxlength="60" ' +
+            'value="' + esc(company ? company.name : '') + '" placeholder="如：杭州云序科技有限公司"></label>' +
+        '<label class="field"><span>公司编号</span>' +
+          '<input class="input" name="code" maxlength="30" ' +
+            'value="' + esc(company ? company.code : '') + '" placeholder="如 HZ-001"></label>' +
+        '<label class="field"><span>状态</span>' +
+          '<select class="select" name="status">' +
+            '<option value="active"' + (!company || company.status === 'active' ? ' selected' : '') + '>正常</option>' +
+            '<option value="disabled"' + (company && company.status === 'disabled' ? ' selected' : '') + '>停用</option>' +
+          '</select></label>' +
+        '<label class="field"><span>联系人</span>' +
+          '<input class="input" name="contact" maxlength="30" ' +
+            'value="' + esc(company ? company.contact : '') + '"></label>' +
+        '<label class="field"><span>联系电话</span>' +
+          '<input class="input" name="phone" maxlength="40" ' +
+            'value="' + esc(company ? company.phone : '') + '"></label>' +
+      '</div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>取消</button>' +
+        '<button class="btn primary" type="submit">保存</button>' +
+      '</div>' +
+    '</form>');
+
+  $('#companyForm').addEventListener('submit', saveCompany);
+}
+
+async function saveCompany(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+  const id = form.dataset.id || '';
+
+  const name = form.name.value.trim();
+  if (!name) { errBox.textContent = '请填写公司名称'; return; }
+
+  const payload = {
+    name: name,
+    code: form.code.value.trim() || null,
+    contact: form.contact.value.trim() || null,
+    phone: form.phone.value.trim() || null,
+    status: form.status.value,
+  };
+
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    const res = id
+      ? await sb.from('companies').update(payload).eq('id', id)
+      : await sb.from('companies').insert(payload);
+    if (res.error) throw res.error;
+
+    closeModal();
+    toast(id ? '公司已更新' : '公司已创建', 'ok');
+    await loadCompanies();
+    renderCompanies();
+    if (id === (state.me.company_id || '')) state.company = state.companyMap[id] || state.company;
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存';
+  }
+}
+
+async function deleteCompany(id) {
+  const c = state.companies.filter(function (x) { return x.id === id; })[0];
+  if (!c) return;
+  const ok = await confirmAction({
+    title: '删除公司',
+    text: '将永久删除「' + c.name + '」及其名下全部订单，该公司的用户会变成「未分配公司」而无法查看数据。此操作不可恢复。',
+    okText: '确认删除',
+    danger: true,
+    requireText: c.name,
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try {
+    res = await sb.from('companies').delete().eq('id', id);
+  } finally {
+    setBusy(false);
+  }
+  if (res.error) { toast(errMsg(res.error), 'error'); return; }
+  toast('公司已删除', 'ok');
+  await loadCompanies();
+  renderCompanies();
+}
+
+/* ----------------------------------------------------------------------------
+ * 14. 系统配置页
+ * -------------------------------------------------------------------------- */
+function setupHtml() {
+  const urlOk = /^https:\/\//.test(SUPABASE_URL) && !/YOUR-PROJECT/.test(SUPABASE_URL);
+  const keyOk = isConfigured;
+
+  return '' +
+  '<div class="grid-2">' +
+    '<div class="card">' +
+      '<div class="card-head"><h3>连接状态</h3>' +
+        '<span class="badge ' + (isConfigured ? 'ok' : 'warn') + '">' +
+          (isConfigured ? '已配置' : '待配置') + '</span></div>' +
+      '<div class="card-body">' +
+        '<div class="kv"><span>Project URL</span><code>' + esc(CFG_URL) + '</code></div>' +
+        '<div class="kv"><span>Anon Key</span><code>' +
+          esc(isConfigured ? CFG_ANON.slice(0, 14) + '…' + CFG_ANON.slice(-6) : '未填写') +
+        '</code></div>' +
+        '<div class="kv"><span>配置来源</span><code>' + esc(CFG_SOURCE) + '</code></div>' +
+        '<div class="kv"><span>SDK</span><code>' +
+          ((window.supabase && window.supabase.createClient)
+            ? '已加载' + (window.supabase.version ? ' v' + window.supabase.version : '')
+            : '未加载') +
+        '</code></div>' +
+        '<div class="kv"><span>登录账号</span><code>' +
+          esc(state.me ? (state.me.email + ' · ' + ((ROLE[state.me.role] || {}).label || '')) : '未登录') +
+        '</code></div>' +
+        '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button class="btn sm" type="button" data-act="edit-cfg">重新填写连接配置</button>' +
+          '<a class="btn sm" href="https://supabase.com/dashboard" target="_blank" rel="noopener">打开 Supabase 后台</a>' +
+        '</div>' +
+        '<p class="hint" style="margin-top:12px">连接配置可以直接在登录页粘贴（存在本浏览器）；' +
+          '长期部署建议写进文件顶部的 <code>SUPABASE_URL</code> / <code>SUPABASE_ANON_KEY</code> 常量。</p>' +
+      '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-head"><h3>上线四步</h3></div>' +
+      '<ol class="steps">' +
+        '<li>打开 <b>supabase.com</b> → 登录 → <b>New project</b>，Region 建议选 Singapore / Tokyo。</li>' +
+        '<li>项目左侧栏点 <b>SQL Editor</b> → <b>New query</b> → 把本页下方的 SQL 整段粘进去 → 点右下角 <b>Run</b>（Ctrl+Enter）。' +
+            '执行完会显示 “Success. No rows returned”，只需做一次。</li>' +
+        '<li>左侧 <b>Project Settings → API</b>，复制 <b>Project URL</b> 和 <b>anon public</b>，' +
+            '回到本系统登录页，粘贴到「连接 Supabase」的两个输入框，点「保存并连接」。</li>' +
+        '<li>在登录页切到「注册」，创建第一个账号 —— 它会自动成为<b>超级管理员</b>。</li>' +
+      '</ol>' +
+      '<div class="card-body" style="padding-top:0">' +
+        '<div class="hint">顺序很重要：<b>先建表（第 2 步），再填密钥（第 3 步），最后注册（第 4 步）</b>。' +
+          '没执行 SQL 就注册会报 “数据库尚未初始化”。</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<div class="card-head"><h3>数据库初始化 SQL</h3>' +
+      '<div class="head-actions">' +
+        '<a class="btn sm" href="https://supabase.com/dashboard" target="_blank" rel="noopener">打开 Supabase</a>' +
+        '<button class="btn primary sm" type="button" data-act="copy-sql">复制 SQL</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="code-wrap"><pre class="sql-block">' + esc(SETUP_SQL) + '</pre></div>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<div class="card-head"><h3>权限与数据隔离说明</h3></div>' +
+    '<ul class="notes">' +
+      '<li><b>超级管理员</b>：可见全部公司、全部订单、全部用户；可增删改公司、调整任何人角色。</li>' +
+      '<li><b>公司管理员</b>：只能看到本公司数据；可邀请本公司成员、管理本公司订单。</li>' +
+      '<li><b>普通用户</b>：只看到自己录入的订单，只能新建订单（不能修改/删除，如需放开可改 orders_update 策略）。</li>' +
+      '<li><b>隔离原理</b>：前端所有查询都带 company_id 条件，真正的兜底是 Postgres 的 RLS 策略 —— ' +
+        '即使有人篡改前端代码，数据库也不会返回其他公司的数据。</li>' +
+      '<li><b>安全提醒</b>：前端只能放 anon key；<b>service_role key 绝对不能写进网页</b>。' +
+        '如需完全关闭注册，可在 Supabase 的 Authentication → Providers 中关闭 Email 注册。</li>' +
+      '<li><b>收不到验证邮件</b>：本地测试可在 Authentication → Providers → Email 中关闭 "Confirm email"，注册后直接登录。</li>' +
+    '</ul>' +
+  '</div>';
+}
+
+function renderSetup() {
+  $('#setupBody').innerHTML = setupHtml();
+}
+
+async function copyText(text, okMessage) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    toast(okMessage || '已复制到剪贴板', 'ok');
+  } catch (e) {
+    toast('复制失败，请手动选中文本复制', 'error');
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * 15. 事件绑定
+ * -------------------------------------------------------------------------- */
+function bindEvents() {
+  document.addEventListener('click', function (event) {
+    const target = event.target;
+
+    /* 侧边栏 */
+    const nav = target.closest('[data-nav]');
+    if (nav) { switchView(nav.dataset.nav); return; }
+
+    const goto = target.closest('[data-goto]');
+    if (goto) { switchView(goto.dataset.goto); return; }
+
+    if (target.closest('#btnMenu')) { openSidebar(); return; }
+    if (target.closest('#scrim')) { closeSidebar(); return; }
+
+    /* 弹窗 */
+    if (target.closest('[data-close]')) { closeModal(); return; }
+    if (target.closest('[data-cancel]')) { resolveConfirm(false); return; }
+    if (target.closest('#confirmOk')) { resolveConfirm(true); return; }
+
+    const actEl = target.closest('[data-act]');
+    if (!actEl) return;
+    const act = actEl.dataset.act;
+    const id = actEl.dataset.id;
+
+    switch (act) {
+      case 'tab': switchAuthTab(actEl.dataset.tab); break;
+      case 'save-cfg': saveCfg(); break;
+      case 'edit-cfg': editCfg(); break;
+      case 'guide': openModal('Supabase 配置说明', setupHtml(), 'lg'); break;
+      case 'logout': doLogout(); break;
+      case 'refresh': switchView(state.view); break;
+      case 'new-order': openOrderModal(null); break;
+      case 'edit-order': {
+        const o = state.orders.rows.filter(function (r) { return r.id === id; })[0];
+        if (o) openOrderModal(o);
+        break;
+      }
+      case 'del-order': doDeleteOrder(id); break;
+      case 'page': loadOrders(parseInt(id, 10)).catch(function (e) { toast(errMsg(e), 'error'); }); break;
+      case 'reset-filters': resetFilters(); break;
+      case 'invite': openInviteModal(); break;
+      case 'toggle-user': toggleUser(id); break;
+      case 'del-user': deleteUser(id); break;
+      case 'revoke-invite': revokeInvite(id); break;
+      case 'new-company': openCompanyModal(null); break;
+      case 'edit-company': {
+        const c = state.companies.filter(function (x) { return x.id === id; })[0];
+        if (c) openCompanyModal(c);
+        break;
+      }
+      case 'del-company': deleteCompany(id); break;
+      case 'copy-sql': copyText(SETUP_SQL, '初始化 SQL 已复制'); break;
+      default: break;
+    }
+  });
+
+  document.addEventListener('change', function (event) {
+    const el = event.target;
+    if (!el.dataset) return;
+    if (el.dataset.act === 'change-role') {
+      changeRole(el.dataset.id, el.value);
+    } else if (el.dataset.act === 'change-company') {
+      changeUserCompany(el.dataset.id, el.value);
+    }
+  });
+
+  /* 订单筛选 */
+  let searchTimer = null;
+  document.addEventListener('input', function (event) {
+    const el = event.target;
+    if (el.id === 'fq') {
+      state.filters.q = el.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); });
+      }, 320);
+    } else if (el.id === 'fuser') {
+      state.userQ = el.value;
+      renderUsers();
+    } else if (el.id === 'fcompany-search') {
+      state.companyQ = el.value;
+      renderCompanies();
+    }
+  });
+
+  document.addEventListener('change', function (event) {
+    const el = event.target;
+    if (el.id === 'fstatus') { state.filters.status = el.value; loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
+    if (el.id === 'fcompany') { state.filters.company = el.value; loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
+    if (el.id === 'ffrom') { state.filters.from = el.value; loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
+    if (el.id === 'fto') { state.filters.to = el.value; loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    /* 连接面板里按回车直接保存 */
+    if (event.key === 'Enter' && (event.target.id === 'cfgUrl' || event.target.id === 'cfgKey')) {
+      event.preventDefault();
+      saveCfg();
+      return;
+    }
+    if (event.key !== 'Escape') return;
+    if (!$('#confirmHost').hidden) { resolveConfirm(false); return; }
+    if (!$('#modalHost').hidden) { closeModal(); return; }
+    closeSidebar();
+  });
+
+  $('#loginForm').addEventListener('submit', doLogin);
+  $('#registerForm').addEventListener('submit', doRegister);
+}
+
+/* ----------------------------------------------------------------------------
+ * 16. 启动
+ * -------------------------------------------------------------------------- */
+async function boot() {
+  bindEvents();
+
+  /* 还没填 URL / Key：先显示连接面板，连 SDK 都不用加载 */
+  if (!isConfigured) { showAuth(); return; }
+
+  const sdkOk = await ensureSdk();
+  if (!sdkOk) { showAuth({ sdkError: true }); return; }
+
+  sb = createSupa();
+  if (!sb) { showAuth({ sdkError: true }); return; }
+
+  /* 监听登录态失效（token 过期 / 其他地方退出） */
+  sb.auth.onAuthStateChange(function (evt, session) {
+    if (evt === 'SIGNED_OUT') {
+      state.session = null;
+      state.me = null;
+      showAuth();
+    } else if (evt === 'SIGNED_IN' && session) {
+      state.session = session;
+    }
+  });
+
+  try {
+    const res = await sb.auth.getSession();
+    const session = res.data ? res.data.session : null;
+    if (session) {
+      state.session = session;
+      await enterApp();
+    } else {
+      showAuth();
+    }
+  } catch (e) {
+    showAuth({ error: errMsg(e) });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
