@@ -134,6 +134,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .field{display:flex;flex-direction:column;gap:7px}
 .field > span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
 .field > span em{color:var(--brand);font-style:normal;margin-left:2px}
+.field > span .cur-tag{color:#7ce9ff;font-weight:800;letter-spacing:.02em;margin-left:4px}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
 .form-grid .span-2{grid-column:1 / -1}
 .form-error{color:#ffa5b3;font-size:12.5px;font-weight:600;margin-top:10px}
@@ -894,9 +895,9 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
       <section class="view" id="view-dashboard">
         <div class="hello" id="helloCard"></div>
         <div class="stat-grid" id="statGrid"></div>
-        <div class="grid-2">
+        <div class="grid-2" id="gridOrderCharts">
           <div class="card">
-            <div class="card-head"><h3 data-i18n="近 7 天下单金额">近 7 天下单金额</h3><span class="muted sm-text" data-i18n="按天统计">按天统计</span></div>
+            <div class="card-head"><h3 data-i18n="近 7 天下单金额">近 7 天下单金额</h3><span class="muted sm-text"><span data-i18n="按天统计">按天统计</span> · <b id="chartCur">SGD</b></span></div>
             <div class="chart" id="chartBars"></div>
           </div>
           <div class="card">
@@ -905,7 +906,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
           </div>
         </div>
         <div class="card">
-          <div class="card-head"><h3 data-i18n="最近订单">最近订单</h3><button class="btn ghost sm" data-goto="orders" data-i18n="查看全部">查看全部</button></div>
+          <div class="card-head" id="recentCardHead"><h3 data-i18n="最近订单">最近订单</h3><button class="btn ghost sm" data-goto="orders" data-i18n="查看全部">查看全部</button></div>
           <div class="table-wrap"><table class="table" id="recentTable"></table></div>
         </div>
       </section>
@@ -1070,8 +1071,8 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 /* ----------------------------------------------------------------------------
  * 1. Supabase 配置（也可以在登录页直接粘贴，存在浏览器本地）
  * -------------------------------------------------------------------------- */
-const SUPABASE_URL = 'https://djgxifkricznigwtlaba.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_RdKokILTvbPtqjR9EUHB-A_7iW9EuEc';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const CFG_STORE_KEY = 'maxai.supabase';
 
@@ -1126,6 +1127,16 @@ const EN = {
   /* 登录/注册 */
   '登录': 'Sign in',
   '登录查看你的订单状态': 'Sign in to check your order status',
+  '平台控制台': 'Platform console',
+  '只管理公司与账号，不看各公司订单数据': 'Companies and accounts only — never tenant order data',
+  '已开通租户': 'Active tenants',
+  '平台账号': 'Accounts',
+  '待接受邀请': 'Pending invites',
+  '邀请码未使用': 'Codes not used yet',
+  '平台不展示各公司订单': 'Tenant orders are not shown here',
+  '订单数据属于各公司自己，平台方无权查看。需要处理订单请登录对应公司的账号。': 'Orders belong to each company. The platform owner has no access — sign in with the company account to handle them.',
+  '订单数据': 'Order data',
+  '已隔离': 'Isolated',
   '你的邮箱': 'your@email.com',
   '记住我': 'Remember me',
   '忘记密码？': 'Forgot password?',
@@ -1264,7 +1275,9 @@ const EN = {
   '编辑公司': 'Edit company',
   '备注': 'Note',
   '选填': 'Optional',
-  '金额（元）': 'Amount (¥)',
+  '金额（元）': 'Amount',
+  '货币': 'Currency',
+  '默认货币': 'Default currency',
 
   /* 计数 */
   '共 {n} 条': '{n} total',
@@ -1545,7 +1558,7 @@ const state = {
   orders: { rows: [], page: 0, size: 10, count: 0 },
   filters: { q: '', status: '', company: '', from: '', to: '' },
   users: [], invites: [], userQ: '', companyQ: '',
-  inviteCode: '', qrShown: {}, cfgAdminMode: false
+  inviteCode: '', qrShown: {}, cfgAdminMode: false, inviteCount: 0
 };
 
 /* ----------------------------------------------------------------------------
@@ -1562,21 +1575,32 @@ function esc(v) {
 
 function locale() { return lang === 'en' ? 'en-US' : 'zh-CN'; }
 
-function money(v) {
+/* 货币：新币 SGD / 马币 MYR（金额一律按订单自己的货币显示，不混算） */
+const CURRENCIES = {
+  SGD: { symbol: 'S$', zh: '新币', en: 'SGD' },
+  MYR: { symbol: 'RM', zh: '马币', en: 'MYR' }
+};
+function curInfo(code) { return CURRENCIES[code] || CURRENCIES.SGD; }
+function curSymbol(code) { return curInfo(code).symbol; }
+function curName(code) { return lang === 'en' ? curInfo(code).en : curInfo(code).zh; }
+function curLabel(code) { const c = curInfo(code); return c.symbol + ' ' + (lang === 'en' ? c.en : c.zh); }
+
+function money(v, cur) {
   const n = Number(v) || 0;
-  return '¥' + n.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return curSymbol(cur) + n.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function moneyShort(v) {
+function moneyShort(v, cur) {
   const n = Number(v) || 0;
-  if (lang === 'en') {
-    if (n >= 1000000) return '¥' + (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return '¥' + (n / 1000).toFixed(1) + 'k';
-    return '¥' + Math.round(n);
+  const s = curSymbol(cur);
+  if (lang === 'en' || (cur && cur !== 'SGD')) {
+    if (n >= 1000000) return s + (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return s + (n / 1000).toFixed(1) + 'k';
+    return s + Math.round(n);
   }
-  if (n >= 10000) return '¥' + (n / 10000).toFixed(1) + '万';
-  if (n >= 1000) return '¥' + (n / 1000).toFixed(1) + 'k';
-  return '¥' + Math.round(n);
+  if (n >= 10000) return s + (n / 10000).toFixed(1) + '万';
+  if (n >= 1000) return s + (n / 1000).toFixed(1) + 'k';
+  return s + Math.round(n);
 }
 
 function num(v) {
@@ -2351,7 +2375,9 @@ function showBlocked(title, text) {
  * 9. 外壳
  * -------------------------------------------------------------------------- */
 function navItems() {
-  const list = ['dashboard', 'orders'];
+  const list = ['dashboard'];
+  /* 平台方（super_admin）不参与任何公司的订单，连入口都不给 */
+  if (!isSuper()) list.push('orders');
   if (isStaff()) list.push('users');
   if (isSuper()) list.push('companies');
   list.push('support');
@@ -2393,6 +2419,7 @@ async function switchView(id) {
   if ((id === 'companies' || id === 'users') && !isStaff()) return;
   if (id === 'companies' && !isSuper()) return;
   if (id === 'setup' && !isSuper()) return;
+  if (id === 'orders' && isSuper()) return;   // 平台方没有订单视图
 
   state.view = id;
   $$('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + id); });
@@ -2427,7 +2454,7 @@ async function switchView(id) {
 }
 
 function subFor(id) {
-  if (id === 'dashboard') return isSuper() ? t('全平台业务概览') : t('本公司业务概览');
+  if (id === 'dashboard') return isSuper() ? t('平台控制台') : t('本公司业务概览');
   if (id === 'orders') return isSuper() ? t('查看并管理所有公司的订单') : t('查看并管理本公司订单');
   if (id === 'users') return isSuper() ? t('管理全部账号、角色与公司归属') : t('管理本公司成员与角色');
   return t(VIEW_META[id].sub);
@@ -2457,6 +2484,12 @@ async function loadCompanies() {
 
 function companyName(id) {
   return (state.companyMap[id] && state.companyMap[id].name) || '—';
+}
+
+/* 货币跟着公司走：订单不看自己的 currency，一律用所属公司的 */
+function companyCurrency(id) {
+  const c = state.companyMap[id];
+  return (c && c.currency) || (state.company && state.company.currency) || 'SGD';
 }
 
 function renderCompanies() {
@@ -2515,6 +2548,13 @@ function openCompanyModal(company) {
           '<input class="input" name="contact" maxlength="30" value="' + esc(company ? company.contact : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('电话')) + '</span>' +
           '<input class="input" name="phone" maxlength="40" value="' + esc(company ? company.phone : '') + '"></label>' +
+        '<label class="field span-2"><span>' + esc(t('默认货币')) + '</span>' +
+          '<select class="select" name="currency">' +
+            ['SGD', 'MYR'].map(function (c) {
+              const cur = (company && company.currency) || 'SGD';
+              return '<option value="' + c + '"' + (c === cur ? ' selected' : '') + '>' + esc(curLabel(c)) + '</option>';
+            }).join('') +
+          '</select></label>' +
       '</div>' +
       '<div class="form-error"></div>' +
       '<div class="form-actions">' +
@@ -2589,6 +2629,19 @@ async function deleteCompany(id) {
 async function refreshDashboard() {
   setBusy(true);
   try {
+    /* 平台方：只统计公司与账号，不碰任何公司的订单 */
+    if (isSuper()) {
+      const [u, iv] = await Promise.all([
+        sb.from('profiles').select('id', { count: 'exact', head: true }),
+        sb.from('invites').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      ]);
+      state.userCount = (u && u.count) || 0;
+      state.inviteCount = (iv && iv.count) || 0;
+      await loadCompanies();
+      renderPlatformDashboard();
+      return;
+    }
+
     const res = await sb.rpc('dashboard_stats', { p_days: 7, p_tz: clientTimeZone() });
     if (res.error) throw res.error;
     state.stats = res.data || { agg: {}, daily: [] };
@@ -2596,15 +2649,58 @@ async function refreshDashboard() {
     const recent = await sb.from('orders').select('*').order('ordered_at', { ascending: false }).limit(6);
     if (recent.error) throw recent.error;
 
-    if (isSuper()) {
-      const cnt = await sb.from('profiles').select('id', { count: 'exact', head: true });
-      state.userCount = (cnt && cnt.count) || 0;
-    }
     renderDashboard(recent.data || []);
   } finally { setBusy(false); }
 }
 
+/* 平台方仪表盘：公司数 / 账号数 / 待接受邀请，不含任何订单数据 */
+function renderPlatformDashboard() {
+  const h = new Date().getHours();
+  const greet = h < 6 ? '凌晨好' : h < 12 ? '上午好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+  const name = state.me.full_name || state.me.email;
+
+  $('#helloCard').innerHTML =
+    '<div class="hello-main">' +
+      '<div class="hello-kicker">' + esc(t(greet)) + (lang === 'en' ? ', ' : '，') + esc(name) + '</div>' +
+      '<div class="hello-sub">' + esc(t('平台控制台')) + ' · ' + esc(t('只管理公司与账号，不看各公司订单数据')) +
+        ' · ' + esc(fmtLongDate(new Date())) + '</div>' +
+    '</div>' +
+    '<div class="hello-actions">' +
+      '<button class="btn light" type="button" data-goto="companies">' + esc(t('公司管理')) + '</button>' +
+      '<button class="btn light" type="button" data-goto="users">' + esc(t('用户管理')) + '</button>' +
+    '</div>';
+
+  const cards = [
+    { label: '公司总数', value: num(state.companies.length), foot: t('已开通租户'), tone: '' },
+    { label: '平台账号', value: num(state.userCount), foot: t('全部角色'), tone: 'info' },
+    { label: '待接受邀请', value: num(state.inviteCount || 0), foot: t('邀请码未使用'), tone: 'warn' }
+  ];
+  $('#statGrid').style.gridTemplateColumns = 'repeat(3,minmax(0,1fr))';
+  $('#statGrid').innerHTML = cards.map(function (c) {
+    return '<div class="stat ' + c.tone + '">' +
+      '<div class="stat-label">' + esc(t(c.label)) + '</div>' +
+      '<div class="stat-value">' + c.value + '</div>' +
+      '<div class="stat-foot">' + esc(c.foot) + '</div></div>';
+  }).join('');
+
+  $('#chartBars').innerHTML = '';
+  $('#statusBars').innerHTML = '';
+  $('#gridOrderCharts').hidden = true;
+
+  $('#recentTable').innerHTML =
+    '<tbody><tr><td><div class="empty"><b>' + esc(t('平台不展示各公司订单')) + '</b>' +
+    esc(t('订单数据属于各公司自己，平台方无权查看。需要处理订单请登录对应公司的账号。')) + '</div></td></tr></tbody>';
+  $('#recentCardHead').innerHTML = '<h3>' + esc(t('订单数据')) + '</h3>' +
+    '<span class="badge muted">' + esc(t('已隔离')) + '</span>';
+}
+
 function renderDashboard(recent) {
+  /* 若之前渲染过平台视图，先把布局恢复回来 */
+  $('#statGrid').style.gridTemplateColumns = '';
+  $('#gridOrderCharts').hidden = false;
+  $('#recentCardHead').innerHTML = '<h3>' + esc(t('最近订单')) + '</h3>' +
+    '<button class="btn ghost sm" data-goto="orders">' + esc(t('查看全部')) + '</button>';
+
   const agg = (state.stats && state.stats.agg) || {};
   const daily = (state.stats && state.stats.daily) || [];
   const name = state.me.full_name || state.me.email;
@@ -2624,11 +2720,25 @@ function renderDashboard(recent) {
       (isStaff() ? '<button class="btn light" type="button" data-act="invite">+ ' + esc(t('邀请客服')) + '</button>' : '') +
     '</div>';
 
+  /* 金额按货币分开：S$ 与 RM 不能相加 */
+  let byCur = (state.stats && state.stats.by_cur) || null;
+  if (!byCur || !byCur.length) {
+    byCur = [{ currency: 'SGD', total: agg.total || 0, amount: agg.amount || 0, month_amount: agg.month_amount || 0, month_count: agg.month_count || 0 }];
+  }
+  byCur = byCur.slice().sort(function (a, b) { return Number(b.month_amount) - Number(a.month_amount); });
+
+  const monthLines = byCur.filter(function (c) { return Number(c.month_amount) > 0; });
+  const monthValue = monthLines.length
+    ? monthLines.map(function (c) { return money(c.month_amount, c.currency); }).join('<br>')
+    : money(0, byCur[0].currency);
+  const totalFoot = byCur.filter(function (c) { return Number(c.amount) > 0; })
+    .map(function (c) { return moneyShort(c.amount, c.currency); }).join(' · ') || moneyShort(0, byCur[0].currency);
+
   const cards = [
-    { label: isSuper() ? '全平台订单' : '订单总数', value: num(agg.total), foot: tf('累计 {v}', { v: moneyShort(agg.amount) }), tone: '' },
+    { label: isSuper() ? '全平台订单' : '订单总数', value: num(agg.total), foot: tf('累计 {v}', { v: totalFoot }), tone: '' },
     { label: '本月订单', value: num(agg.month_count), foot: t('本月新增'), tone: 'info' },
     { label: '待处理', value: num(agg.pending), foot: t('需要跟进'), tone: 'warn' },
-    { label: '本月金额', value: money(agg.month_amount), foot: t('本月成交'), tone: 'ok' }
+    { label: '本月金额', value: monthValue, foot: t('本月成交'), tone: 'ok' }
   ];
 
   $('#statGrid').innerHTML = cards.map(function (c) {
@@ -2638,15 +2748,29 @@ function renderDashboard(recent) {
       '<div class="stat-foot">' + esc(c.foot) + '</div></div>';
   }).join('');
 
-  const max = Math.max.apply(null, daily.map(function (d) { return Number(d.amount) || 0; }).concat([1]));
-  $('#chartBars').innerHTML = '<div class="bars">' + daily.map(function (d) {
+  /* 柱状图：按金额最大的那种货币展示，避免两种货币混在一张图里 */
+  const chartCur = byCur[0].currency;
+  const byDay = {};
+  daily.forEach(function (d) {
+    const c = d.currency || 'SGD';
+    if (c !== chartCur) return;
+    byDay[d.day] = (byDay[d.day] || 0) + (Number(d.amount) || 0);
+  });
+  const series = Object.keys(byDay).sort().map(function (day) {
+    const hit = daily.filter(function (x) { return x.day === day; })[0] || {};
+    return { day: day, amount: byDay[day], count: hit.count || 0 };
+  });
+  $('#chartCur').textContent = chartCur;
+
+  const max = Math.max.apply(null, series.map(function (d) { return Number(d.amount) || 0; }).concat([1]));
+  $('#chartBars').innerHTML = '<div class="bars">' + series.map(function (d) {
     const amount = Number(d.amount) || 0;
     const pct = amount > 0 ? Math.max(6, Math.round(amount / max * 100)) : 2;
     const label = fmtDate(d.day, false).slice(5).replace('-', '/');
     return '<div class="bar-col">' +
       '<div class="bar-track"><div class="bar-fill" style="height:' + pct + '%" title="' +
-        esc(fmtDate(d.day, false) + ' · ' + money(amount) + ' · ' + d.count) + '">' +
-        (amount > 0 ? '<span class="bar-val">' + moneyShort(amount) + '</span>' : '') +
+        esc(fmtDate(d.day, false) + ' · ' + money(amount, chartCur) + ' · ' + d.count) + '">' +
+        (amount > 0 ? '<span class="bar-val">' + moneyShort(amount, chartCur) + '</span>' : '') +
       '</div></div><div class="bar-x">' + esc(label) + '</div></div>';
   }).join('') + '</div>';
 
@@ -2672,7 +2796,7 @@ function renderDashboard(recent) {
         return '<tr><td><div class="cell-main">' + esc(o.customer_name) + '</div>' +
           (o.customer_phone ? '<div class="cell-sub">' + esc(o.customer_phone) + '</div>' : '') + '</td>' +
           '<td>' + esc(o.product_name) + '</td>' +
-          '<td class="num strong">' + money(o.amount) + '</td>' +
+          '<td class="num strong">' + money(o.amount, companyCurrency(o.company_id)) + '</td>' +
           '<td><span class="badge ' + s.cls + '">' + esc(t(s.label)) + '</span></td>' +
           '<td class="muted nowrap">' + fmtDate(o.ordered_at) + '</td></tr>';
       }).join('') + '</tbody>';
@@ -2747,7 +2871,7 @@ function renderOrders() {
         (o.customer_phone ? '<div class="cell-sub">' + esc(o.customer_phone) + '</div>' : '') + '</td>' +
       '<td>' + esc(o.product_name) + '</td>' +
       '<td class="num">' + num(o.quantity) + '</td>' +
-      '<td class="num strong">' + money(o.amount) + '</td>' +
+      '<td class="num strong">' + money(o.amount, companyCurrency(o.company_id)) + '</td>' +
       '<td><span class="badge ' + s.cls + '">' + esc(t(s.label)) + '</span></td>' +
       (showCompany ? '<td>' + esc(companyName(o.company_id)) + '</td>' : '') +
       '<td class="muted nowrap">' + fmtDate(o.ordered_at) + '</td>' +
@@ -2797,7 +2921,9 @@ function openOrderModal(order) {
           '<input class="input" name="product_name" required maxlength="80" value="' + esc(order ? order.product_name : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('数量')) + '<em>*</em></span>' +
           '<input class="input" name="quantity" type="number" min="0" step="1" required value="' + esc(order ? order.quantity : 1) + '"></label>' +
-        '<label class="field"><span>' + esc(t('金额（元）')) + '<em>*</em></span>' +
+        '<label class="field"><span>' + esc(t('金额')) + '<em>*</em> <b class="cur-tag" id="amtCur">' +
+          esc(curSymbol(editing ? companyCurrency(order.company_id) : (isSuper() ? (state.companies[0] && state.companies[0].currency) : (state.company && state.company.currency)) || 'SGD')) +
+          '</b></span>' +
           '<input class="input" name="amount" type="number" min="0" step="0.01" required value="' + esc(order ? order.amount : 0) + '"></label>' +
         '<label class="field"><span>' + esc(t('状态')) + '</span>' +
           '<select class="select" name="status">' + statusOptions(order ? order.status : 'pending') + '</select></label>' +
@@ -2813,6 +2939,15 @@ function openOrderModal(order) {
         '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
       '</div></form>');
   $('#orderForm').addEventListener('submit', saveOrder);
+
+  /* 超级管理员切换公司时，金额后面的货币符号跟着变 */
+  const cSel = $('#orderForm select[name=company_id]');
+  if (cSel) {
+    cSel.addEventListener('change', function () {
+      const tag = $('#amtCur');
+      if (tag) tag.textContent = curSymbol(companyCurrency(cSel.value));
+    });
+  }
 }
 
 async function saveOrder(event) {
@@ -3268,14 +3403,14 @@ function setupHtml() {
 
   const notes = lang === 'en'
     ? [
-        '<b>Super admin</b>: all companies, orders and users; can create companies and change anyone’s role.',
-        '<b>Company admin</b>: only its own company; invites members and manages orders.',
+        '<b>Platform owner (super admin)</b>: manages companies and accounts only — <b>cannot see any tenant orders</b> (blocked by RLS).',
+        '<b>Company admin</b>: only its own company; invites members and manages that company’s orders.',
         '<b>Member</b>: sees only their own orders and can create new ones.',
         '<b>Isolation</b>: every query carries company_id, and Postgres RLS enforces it server-side.',
         '<b>Security</b>: only the anon key belongs in the frontend — never the service_role key.'
       ]
     : [
-        '<b>超级管理员</b>：可见全部公司、订单与用户；可增删改公司、调整任何人的角色。',
+        '<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。',
         '<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。',
         '<b>普通用户</b>：只看到自己录入的订单，只能新建订单。',
         '<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。',
