@@ -235,6 +235,32 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .auth-foot{margin-top:18px;text-align:center;font-size:12.5px}
 .auth-foot .link{font-size:12.5px;color:var(--muted)}
 .auth-foot .link:hover{color:var(--brand)}
+.brand-tag{font-size:12px;color:#8b96b3;margin-top:6px;letter-spacing:.01em}
+.pw-wrap{position:relative}
+.pw-wrap .input{padding-right:46px}
+.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:8px;display:grid;place-items:center;transition:.15s}
+.pw-toggle:hover{color:var(--ink);background:rgba(255,255,255,.07)}
+.pw-toggle svg{width:18px;height:18px;display:block}
+.check{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--ink-2);cursor:pointer;line-height:1.65}
+.check input{width:16px;height:16px;margin:2px 0 0;accent-color:#22d3ee;flex:none;cursor:pointer}
+.check .link{font-size:12.5px}
+.auth-forgot{display:block;margin:2px auto 0;font-size:12.5px;color:var(--muted)}
+.auth-forgot:hover{color:var(--brand)}
+.field-note{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--muted);margin-top:7px}
+.field-note .link{font-size:12px}
+.auth-wa{height:40px;font-size:13px;margin-bottom:10px}
+.legal-links{margin-top:12px;font-size:12px;display:flex;gap:8px;justify-content:center;align-items:center}
+.legal-links .link{font-size:12px;color:var(--muted)}
+.legal-links .link:hover{color:var(--brand)}
+.admin-foot{margin-top:12px}
+.admin-foot .link{font-size:11.5px;color:#4b5671}
+.legal-body{font-size:13px;color:var(--ink-2);line-height:1.85}
+.legal-body h4{margin:18px 0 6px;font-size:13.5px;color:#fff;font-weight:800}
+.legal-body h4:first-child{margin-top:0}
+.legal-body ol{padding-left:18px;margin:6px 0}
+.legal-body li{margin:6px 0}
+.legal-body p{margin:6px 0}
+.legal-meta{font-size:11.5px;color:var(--muted);margin-top:18px;border-top:1px solid var(--line-2);padding-top:10px}
 
 /* 未分配公司 / 已停用 */
 .blocked{min-height:100%;display:grid;place-items:center;padding:24px}
@@ -665,6 +691,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
       <div class="brand-text">
         <div class="brand-name">MaxAI <span class="accent">Portal</span></div>
         <div class="brand-sub" data-i18n="多公司订单中台">多公司订单中台</div>
+        <div class="brand-tag" data-i18n="登录查看你的订单状态">登录查看你的订单状态</div>
       </div>
     </div>
 
@@ -714,50 +741,88 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 
       <form class="auth-form" id="loginForm" novalidate>
         <label class="field"><span data-i18n="邮箱">邮箱</span>
-          <input class="input" name="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+          <input class="input" name="email" type="email" autocomplete="username" data-i18n-ph="你的邮箱" placeholder="你的邮箱" required>
         </label>
         <label class="field"><span data-i18n="密码">密码</span>
-          <input class="input" name="password" type="password" autocomplete="current-password" data-i18n-ph="请输入密码" placeholder="请输入密码" required>
+          <div class="pw-wrap">
+            <input class="input" name="password" type="password" autocomplete="current-password" data-i18n-ph="请输入密码" placeholder="请输入密码" required>
+            <button class="pw-toggle" type="button" data-act="toggle-pw" aria-label="show password" tabindex="-1"></button>
+          </div>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="rememberMe" checked>
+          <span data-i18n="记住我">记住我</span>
         </label>
         <div class="form-error" id="loginError"></div>
         <button class="btn primary block" type="submit" id="loginBtn" data-i18n="登录">登录</button>
+        <button class="link auth-forgot" type="button" data-act="forgot" data-i18n="忘记密码？">忘记密码？</button>
       </form>
 
       <form class="auth-form" id="registerForm" hidden novalidate>
         <div class="auth-banner" id="inviteBanner" hidden></div>
-        <label class="field"><span data-i18n="邀请码">邀请码</span>
-          <input class="input" name="invite_code" maxlength="24" autocomplete="off" spellcheck="false"
+        <label class="field" id="inviteField"><span data-i18n="邀请码">邀请码<em>*</em></span>
+          <input class="input" name="invite_code" id="inviteCode" maxlength="24" autocomplete="off" spellcheck="false" required
                  placeholder="MX-XXXXXX" style="font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase">
+          <span class="field-note">
+            <span data-i18n="没有邀请码？">没有邀请码？</span>
+            <a class="link" id="noCodeWa" target="_blank" rel="noopener" data-i18n="WhatsApp 联系管理员">WhatsApp 联系管理员</a>
+          </span>
         </label>
         <label class="field"><span data-i18n="姓名">姓名</span>
           <input class="input" name="full_name" type="text" autocomplete="name" data-i18n-ph="你的姓名" placeholder="你的姓名" maxlength="30" required>
         </label>
         <label class="field"><span data-i18n="邮箱">邮箱</span>
-          <input class="input" name="email" type="email" autocomplete="username" placeholder="you@company.com" required>
+          <input class="input" name="email" type="email" autocomplete="username" data-i18n-ph="你的邮箱" placeholder="你的邮箱" required>
         </label>
         <label class="field"><span data-i18n="密码">密码</span>
-          <input class="input" name="password" type="password" autocomplete="new-password" data-i18n-ph="至少 6 位" placeholder="至少 6 位" required>
+          <div class="pw-wrap">
+            <input class="input" name="password" type="password" autocomplete="new-password" data-i18n-ph="至少 6 位" placeholder="至少 6 位" required>
+            <button class="pw-toggle" type="button" data-act="toggle-pw" aria-label="show password" tabindex="-1"></button>
+          </div>
         </label>
         <label class="field"><span data-i18n="确认密码">确认密码</span>
           <input class="input" name="password2" type="password" autocomplete="new-password" data-i18n-ph="再输入一次" placeholder="再输入一次" required>
         </label>
+        <label class="check">
+          <input type="checkbox" id="agreeTerms">
+          <span><span data-i18n="我已阅读并同意">我已阅读并同意</span>
+            <button class="link" type="button" data-act="legal" data-legal="terms" data-i18n="使用条款">使用条款</button>
+            <span data-i18n="和">和</span>
+            <button class="link" type="button" data-act="legal" data-legal="privacy" data-i18n="隐私政策">隐私政策</button>
+          </span>
+        </label>
         <div class="form-error" id="registerError"></div>
         <button class="btn primary block" type="submit" id="registerBtn" data-i18n="创建账号">创建账号</button>
-        <p class="hint" id="registerHint" data-i18n="注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。">注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。</p>
+        <p class="hint" id="registerHint" data-i18n="注册需要邀请码，请向管理员索取。">注册需要邀请码，请向管理员索取。</p>
       </form>
     </div>
 
     <div class="auth-foot">
-      <button class="link" type="button" data-act="guide" data-i18n="查看建表 SQL / 配置说明">查看建表 SQL / 配置说明</button>
-      <span class="muted" id="footSep" style="margin:0 7px" hidden>·</span>
-      <button class="link" type="button" id="footEdit" data-act="edit-cfg" hidden data-i18n="连接填错了？重新填写">连接填错了？重新填写</button>
-      <div style="margin-top:14px">
+      <a class="btn whatsapp block auth-wa" id="authWa" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2m0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47m4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.79.97-.14.16-.29.18-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.17 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.51.59.19 1.13.16 1.55.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.28"/></svg>
+        <span data-i18n="WhatsApp 联系 Max Dee">WhatsApp 联系 Max Dee</span>
+      </a>
+      <div class="auth-contact" id="authContact"></div>
+
+      <div class="legal-links">
+        <button class="link" type="button" data-act="legal" data-legal="terms" data-i18n="使用条款">使用条款</button>
+        <span class="muted">·</span>
+        <button class="link" type="button" data-act="legal" data-legal="privacy" data-i18n="隐私政策">隐私政策</button>
+      </div>
+
+      <div style="margin-top:12px">
         <div class="lang-switch" data-lang-switch>
           <button type="button" data-act="lang" data-lang="zh">中文</button>
           <button type="button" data-act="lang" data-lang="en">EN</button>
         </div>
       </div>
-      <div class="auth-contact" id="authContact"></div>
+
+      <!-- 只给管理员看：file:// 本地打开 或 已登录进「系统配置」 -->
+      <div class="admin-foot" id="adminFoot" hidden>
+        <button class="link" type="button" data-act="guide" data-i18n="管理员：建表 SQL / 配置说明">管理员：建表 SQL / 配置说明</button>
+        <span class="muted" id="footSep" style="margin:0 7px" hidden>·</span>
+        <button class="link" type="button" id="footEdit" data-act="edit-cfg" hidden data-i18n="连接填错了？重新填写">连接填错了？重新填写</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1035,7 +1100,6 @@ const CFG_SOURCE = (savedCfg && savedCfg.url)
 /* ----------------------------------------------------------------------------
  * 2. 数据库初始化 SQL（构建时注入，见 supabase-schema.sql）
  * -------------------------------------------------------------------------- */
-const SETUP_SQL = "-- ============================================================================\n-- 云序 · 多公司订单管理系统 —— Supabase 初始化脚本\n-- 用法：Supabase 控制台 → SQL Editor → 新建查询 → 整段粘贴 → Run\n-- 可重复执行（表 / 函数 / 策略都做了 if not exists / drop if exists）\n-- ============================================================================\n\ncreate extension if not exists pgcrypto;\n\n-- ---------------------------------------------------------------------------\n-- 1) 公司表\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.companies (\n  id          uuid primary key default gen_random_uuid(),\n  name        text not null unique,                              -- 公司名称\n  code        text unique,                                       -- 公司编号（选填）\n  contact     text,                                              -- 联系人\n  phone       text,                                              -- 联系电话\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\n\n-- ---------------------------------------------------------------------------\n-- 2) 用户资料表：与 auth.users 一一对应，存放角色与归属公司\n--    role: super_admin 超级管理员 / company_admin 公司管理员 / user 普通用户\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.profiles (\n  id          uuid primary key references auth.users(id) on delete cascade,\n  email       text,\n  full_name   text,\n  role        text not null default 'user'\n              check (role in ('super_admin','company_admin','user')),\n  company_id  uuid references public.companies(id) on delete set null,\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\ncreate index if not exists profiles_company_idx on public.profiles(company_id);\n\n-- ---------------------------------------------------------------------------\n-- 3) 邀请表（v2：邀请码 + 二维码，不再依赖邮箱）\n--    管理员生成 6 位邀请码 → 前端画成二维码 / 分享到 WhatsApp\n--    对方注册时填邀请码，触发器自动写入角色与公司\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.invites (\n  id          uuid primary key default gen_random_uuid(),\n  code        text not null,\n  role        text not null default 'user'\n              check (role in ('company_admin','user')),\n  company_id  uuid not null references public.companies(id) on delete cascade,\n  note        text,\n  email       text,\n  invited_by  uuid references public.profiles(id) on delete set null,\n  status      text not null default 'pending'\n              check (status in ('pending','accepted','revoked')),\n  used_by     uuid references auth.users(id) on delete set null,\n  created_at  timestamptz not null default now(),\n  accepted_at timestamptz\n);\n\n-- v1（按邮箱邀请）→ v2（按邀请码）兼容迁移：老库直接跑这几行\nalter table public.invites add column if not exists code text;\nalter table public.invites add column if not exists note text;\nalter table public.invites add column if not exists used_by uuid references auth.users(id) on delete set null;\nalter table public.invites alter column email drop not null;\nupdate public.invites\n   set code = 'MX-' || upper(substr(md5(id::text || random()::text), 1, 6))\n where code is null;\n\ncreate unique index if not exists invites_code_key on public.invites (code);\ncreate index if not exists invites_company_idx on public.invites (company_id);\n\n-- ---------------------------------------------------------------------------\n-- 4) 订单表\n--    company_id = 归属公司（数据隔离核心字段）\n--    user_id    = 录入人\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.orders (\n  id             uuid primary key default gen_random_uuid(),\n  order_no       text not null default\n                 ('ORD-' || to_char(now(),'YYYYMMDD') || '-' ||\n                  upper(substr(md5(random()::text), 1, 6))),\n  company_id     uuid not null references public.companies(id) on delete cascade,\n  user_id        uuid not null references public.profiles(id) on delete cascade,\n  customer_name  text not null,                                  -- 客户姓名\n  customer_phone text,                                           -- 联系方式\n  product_name   text not null,                                  -- 商品名称\n  quantity       numeric not null default 1 check (quantity >= 0),\n  amount         numeric not null default 0 check (amount >= 0), -- 金额\n  status         text not null default 'pending'\n                 check (status in ('pending','confirmed','shipped','completed','cancelled')),\n  ordered_at     timestamptz not null default now(),             -- 下单时间\n  remark         text,\n  created_at     timestamptz not null default now(),\n  updated_at     timestamptz not null default now()\n);\ncreate index if not exists orders_company_idx on public.orders (company_id, ordered_at desc);\ncreate index if not exists orders_user_idx    on public.orders (user_id);\ncreate index if not exists orders_status_idx  on public.orders (status);\n\n-- ---------------------------------------------------------------------------\n-- 5) 新用户注册时自动建档\n--    · 库里还没有任何用户 → 第一个注册者自动成为超级管理员（完成初始化）\n--    · 注册时带了有效邀请码 → 自动写入邀请里的角色和公司，并把邀请标记为已用\n--    · 其他情况 → 普通用户（等待管理员分配公司）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.handle_new_user()\nreturns trigger\nlanguage plpgsql\nsecurity definer\nset search_path = public\nas $$\ndeclare\n  v_inv   public.invites%rowtype;\n  v_total int;\n  v_code  text;\nbegin\n  select count(*) into v_total from public.profiles;\n\n  if v_total = 0 then\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'super_admin')\n    on conflict (id) do nothing;\n    return new;\n  end if;\n\n  v_code := nullif(upper(trim(coalesce(new.raw_user_meta_data->>'invite_code',''))), '');\n  if v_code is not null then\n    select * into v_inv\n    from public.invites\n    where upper(code) = v_code and status = 'pending'\n    limit 1;\n  end if;\n\n  if v_inv.id is not null then\n    insert into public.profiles (id, email, full_name, role, company_id)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            v_inv.role, v_inv.company_id)\n    on conflict (id) do nothing;\n\n    update public.invites\n       set status = 'accepted',\n           accepted_at = now(),\n           used_by = new.id,\n           email = coalesce(email, new.email)\n     where id = v_inv.id;\n  else\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'user')\n    on conflict (id) do nothing;\n  end if;\n\n  return new;\nend;\n$$;\n\ndrop trigger if exists on_auth_user_created on auth.users;\ncreate trigger on_auth_user_created\n  after insert on auth.users\n  for each row execute function public.handle_new_user();\n\n-- ---------------------------------------------------------------------------\n-- 6) updated_at 自动维护\n-- ---------------------------------------------------------------------------\ncreate or replace function public.touch_updated_at()\nreturns trigger language plpgsql as $$\nbegin\n  new.updated_at := now();\n  return new;\nend;\n$$;\n\ndrop trigger if exists orders_touch on public.orders;\ncreate trigger orders_touch\n  before update on public.orders\n  for each row execute function public.touch_updated_at();\n\n-- ---------------------------------------------------------------------------\n-- 7) 权限判定函数（security definer：绕过 RLS 读取当前用户身份，避免策略递归）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.fn_role()\nreturns text language sql stable security definer set search_path = public as $$\n  select role from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_company_id()\nreturns uuid language sql stable security definer set search_path = public as $$\n  select company_id from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_is_super()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'super_admin' and status = 'active'\n  );\n$$;\n\ncreate or replace function public.fn_is_company_admin()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'company_admin' and status = 'active'\n  );\n$$;\n\n-- 注册前校验邀请码（返回角色/公司，用于注册页提示；不泄露其他信息）\ncreate or replace function public.check_invite_code(p_code text)\nreturns jsonb\nlanguage sql\nstable\nsecurity definer\nset search_path = public\nas $$\n  select coalesce(\n    (select jsonb_build_object('ok', true, 'role', i.role,\n                               'company_id', i.company_id, 'company', c.name)\n       from public.invites i\n       join public.companies c on c.id = i.company_id\n      where upper(i.code) = upper(trim(coalesce(p_code, '')))\n        and i.status = 'pending'\n      limit 1),\n    jsonb_build_object('ok', false)\n  );\n$$;\n\n-- 是否允许“首个管理员”注册（系统中还没有任何用户时为 true）\ncreate or replace function public.first_admin_available()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select not exists (select 1 from public.profiles);\n$$;\n\ndrop function if exists public.check_invite(text);\n\ngrant execute on function public.check_invite_code(text)  to anon, authenticated;\ngrant execute on function public.first_admin_available() to anon, authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 8) 仪表盘统计（security invoker：RLS 照常生效，不同角色只统计自己看得到的数据）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.dashboard_stats(p_days int default 7, p_tz text default 'Asia/Shanghai')\nreturns jsonb\nlanguage sql\nstable\nsecurity invoker\nset search_path = public\nas $$\n  with params as (\n    select least(greatest(coalesce(p_days, 7), 1), 90) as days,\n           coalesce(nullif(trim(p_tz), ''), 'Asia/Shanghai') as tz\n  ),\n  tzd as (\n    select days, tz, (now() at time zone tz)::date as d_today\n    from params\n  ),\n  bounds as (\n    select days, tz, d_today,\n           date_trunc('month', d_today::timestamp)::date as month_start,\n           (d_today - (days - 1))                        as first_day\n    from tzd\n  ),\n  loc as (\n    select o.*,\n           (o.ordered_at at time zone (select tz from params))::date as local_day\n    from public.orders o\n  ),\n  agg as (\n    select count(*)::int                                            as total,\n           coalesce(sum(l.amount), 0)::numeric                      as amount,\n           (count(*) filter (where l.status = 'pending'))::int      as pending,\n           (count(*) filter (where l.status = 'confirmed'))::int    as confirmed,\n           (count(*) filter (where l.status = 'shipped'))::int      as shipped,\n           (count(*) filter (where l.status = 'completed'))::int    as completed,\n           (count(*) filter (where l.status = 'cancelled'))::int    as cancelled,\n           (count(*) filter (where l.local_day >= b.month_start))::int as month_count,\n           coalesce(sum(l.amount) filter (where l.local_day >= b.month_start), 0)::numeric as month_amount\n    from loc l cross join bounds b\n  ),\n  days as (\n    select g::date as d\n    from bounds b,\n         generate_series(b.first_day::timestamp, b.d_today::timestamp, interval '1 day') g\n  ),\n  daily as (\n    select days.d as day,\n           count(l.id)::int                    as cnt,\n           coalesce(sum(l.amount), 0)::numeric as amount\n    from days\n    left join loc l on l.local_day = days.d\n    group by days.d\n    order by days.d\n  )\n  select jsonb_build_object(\n    'agg',   (select to_jsonb(agg) from agg),\n    'daily', (select coalesce(\n                jsonb_agg(jsonb_build_object('day', day, 'count', cnt, 'amount', amount) order by day),\n                '[]'::jsonb)\n              from daily)\n  );\n$$;\n\ngrant execute on function public.dashboard_stats(int, text) to authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 9) 开启行级安全（RLS）\n-- ---------------------------------------------------------------------------\nalter table public.companies enable row level security;\nalter table public.profiles  enable row level security;\nalter table public.invites   enable row level security;\nalter table public.orders    enable row level security;\n\n-- 基础表权限（真正的过滤由下面的 RLS 策略完成）\ngrant select, insert, update, delete\n  on public.companies, public.profiles, public.invites, public.orders\n  to authenticated;\n\n-- --------------------------- 公司 companies --------------------------------\ndrop policy if exists companies_select on public.companies;\ncreate policy companies_select on public.companies\n  for select to authenticated\n  using ( public.fn_is_super() or id = public.fn_company_id() );\n\ndrop policy if exists companies_write on public.companies;\ncreate policy companies_write on public.companies\n  for all to authenticated\n  using ( public.fn_is_super() )\n  with check ( public.fn_is_super() );\n\n-- --------------------------- 用户 profiles --------------------------------\n-- 本人可读；超管可读全部；公司管理员可读本公司成员\ndrop policy if exists profiles_select on public.profiles;\ncreate policy profiles_select on public.profiles\n  for select to authenticated\n  using (\n    id = auth.uid()\n    or public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- 超管可改全部；公司管理员只能改本公司成员，且不能碰超级管理员\ndrop policy if exists profiles_update on public.profiles;\ncreate policy profiles_update on public.profiles\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists profiles_delete on public.profiles;\ncreate policy profiles_delete on public.profiles\n  for delete to authenticated\n  using ( public.fn_is_super() );\n\n-- --------------------------- 邀请 invites --------------------------------\ndrop policy if exists invites_select on public.invites;\ncreate policy invites_select on public.invites\n  for select to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_insert on public.invites;\ncreate policy invites_insert on public.invites\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists invites_update on public.invites;\ncreate policy invites_update on public.invites\n  for update to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) )\n  with check ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_delete on public.invites;\ncreate policy invites_delete on public.invites\n  for delete to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\n-- --------------------------- 订单 orders --------------------------------\n-- 超管看全部；公司管理员看本公司；普通用户只看自己的\ndrop policy if exists orders_select on public.orders;\ncreate policy orders_select on public.orders\n  for select to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n    or ( company_id = public.fn_company_id() and user_id = auth.uid() )\n  );\n\n-- 录入：公司必须是自己的公司；普通用户只能录自己的单\ndrop policy if exists orders_insert on public.orders;\ncreate policy orders_insert on public.orders\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( company_id = public.fn_company_id()\n         and ( public.fn_is_company_admin() or user_id = auth.uid() ) )\n  );\n\n-- 修改：仅超管 / 本公司管理员（普通用户只能查看和录入）\ndrop policy if exists orders_update on public.orders;\ncreate policy orders_update on public.orders\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\ndrop policy if exists orders_delete on public.orders;\ncreate policy orders_delete on public.orders\n  for delete to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- ---------------------------------------------------------------------------\n-- 10) 收尾：把控制台手动创建的历史账号补一份档案（可选）\n-- ---------------------------------------------------------------------------\ninsert into public.profiles (id, email, full_name)\nselect u.id, u.email,\n       coalesce(nullif(u.raw_user_meta_data->>'full_name',''), split_part(u.email,'@',1))\nfrom auth.users u\non conflict (id) do nothing;\n\n-- 如需手动指定超级管理员（把邮箱换成你的账号）：\n-- update public.profiles set role = 'super_admin' where email = 'you@example.com';\n\n-- ============================================================================\n-- 初始化完成 ✅  接下来：登录系统 → 公司管理 → 新建公司 → 用户管理 → 邀请用户\n-- ============================================================================\n\n-- 让 PostgREST 立刻识别新建的函数（否则前端可能报 function ... in the schema cache）\nnotify pgrst, 'reload schema';\n";
 
 /* ----------------------------------------------------------------------------
  * 3. 中英文
@@ -1061,6 +1125,36 @@ const EN = {
 
   /* 登录/注册 */
   '登录': 'Sign in',
+  '登录查看你的订单状态': 'Sign in to check your order status',
+  '你的邮箱': 'your@email.com',
+  '记住我': 'Remember me',
+  '忘记密码？': 'Forgot password?',
+  '我已阅读并同意': 'I have read and agree to the',
+  '使用条款': 'Terms of Service',
+  '隐私政策': 'Privacy Policy',
+  '和': 'and',
+  '请先阅读并同意使用条款和隐私政策': 'Please accept the Terms and Privacy Policy first',
+  '没有邀请码？': 'No invite code?',
+  'WhatsApp 联系管理员': 'WhatsApp the admin',
+  'WhatsApp 联系 Max Dee': 'WhatsApp Max Dee',
+  '注册需要邀请码，请向管理员索取。': 'An invite code is required — ask the admin.',
+  '注册需要邀请码。没有邀请码？点上面的 WhatsApp 联系管理员。': 'An invite code is required. No code? Tap WhatsApp above.',
+  '管理员：建表 SQL / 配置说明': 'Admin: setup notes',
+  '管理员说明': 'Admin notes',
+  '重置密码': 'Reset password',
+  '输入注册时用的邮箱，我们会发一封重置密码的邮件给你。': 'Enter the email you signed up with and we will send a reset link.',
+  '发送重置邮件': 'Send reset link',
+  '如果该邮箱已注册，重置邮件已发送，请查收（含垃圾箱）': 'If that email is registered, a reset link is on its way (check spam too).',
+  '设置新密码': 'Set a new password',
+  '请输入新密码（至少 6 位）。': 'Enter a new password (at least 6 characters).',
+  '新密码': 'New password',
+  '稍后': 'Later',
+  '保存新密码': 'Save password',
+  '密码已更新，请用新密码登录': 'Password updated — sign in with it.',
+  '我知道了': 'Got it',
+  '最后更新：2026-11 · 如需纸质版本或提出异议，请联系 WhatsApp Max Dee +6587171111': 'Last updated: Nov 2026 · For a written copy or objections, WhatsApp Max Dee +6587171111',
+  '不放在网页里': 'Not embedded',
+  '为了防止访客看到表结构和权限策略，初始化 SQL 不再写进这个网页。请在部署包里的 supabase-schema.sql 文件中打开，整段复制到 Supabase → SQL Editor 执行。': 'The init SQL is no longer embedded here, so visitors cannot read your schema. Open supabase-schema.sql from the deploy package and run it in Supabase → SQL Editor.',
   '注册': 'Sign up',
   '退出登录': 'Sign out',
   '邮箱': 'Email',
@@ -1599,11 +1693,46 @@ async function ensureSdk() {
   return false;
 }
 
+/* 「记住我」：勾选 → token 存 localStorage（关浏览器也保持登录）
+   不勾 → 存 sessionStorage（关掉标签页就退出） */
+const REMEMBER_KEY = 'maxai.remember';
+function rememberOn() {
+  try { return localStorage.getItem(REMEMBER_KEY) !== '0'; } catch (e) { return true; }
+}
+const authStorage = {
+  getItem: function (key) {
+    try { return localStorage.getItem(key) || sessionStorage.getItem(key); } catch (e) { return null; }
+  },
+  setItem: function (key, value) {
+    try {
+      (rememberOn() ? localStorage : sessionStorage).setItem(key, value);
+    } catch (e) { /* 忽略 */ }
+  },
+  removeItem: function (key) {
+    try { localStorage.removeItem(key); sessionStorage.removeItem(key); } catch (e) { /* 忽略 */ }
+  }
+};
+
+/* 未勾选「记住我」时，把已写进 localStorage 的 token 挪到 sessionStorage */
+function demoteAuthStorage() {
+  try {
+    Object.keys(localStorage).forEach(function (k) {
+      if (k.indexOf('sb-') === 0 && k.indexOf('auth-token') !== -1) {
+        sessionStorage.setItem(k, localStorage.getItem(k));
+        localStorage.removeItem(k);
+      }
+    });
+  } catch (e) { /* 忽略 */ }
+}
+
 function createSupa() {
   if (!isConfigured) return null;
   if (!window.supabase || !window.supabase.createClient) return null;
   return window.supabase.createClient(CFG_URL, CFG_ANON, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    auth: {
+      persistSession: true, autoRefreshToken: true, detectSessionInUrl: true,
+      storage: authStorage
+    }
   });
 }
 
@@ -1755,7 +1884,32 @@ function showAuth(opts) {
   const lf = $('#loginForm');
   if (lf) lf.reset();
 
-  /* 邀请链接：?code=MX-XXXXXX */
+  /* 记住我：勾选状态 + 回填邮箱 */
+  const rm = $('#rememberMe');
+  if (rm) rm.checked = rememberOn();
+  try {
+    const savedEmail = localStorage.getItem('maxai.email');
+    if (savedEmail && lf) lf.email.value = savedEmail;
+  } catch (e) { /* 忽略 */ }
+
+  /* 管理员入口只在本机（file://）出现，线上访客看不到任何 SQL / 配置入口 */
+  $('#adminFoot').hidden = hosted;
+  $('#footEdit').hidden = !(hosted === false && fromLocal);
+  $('#footSep').hidden = !(hosted === false && fromLocal);
+
+  /* 底部 WhatsApp 按钮 */
+  const awa = $('#authWa');
+  if (awa) awa.href = whatsappUrl(lang === 'en'
+    ? 'Hi Max, I need help signing in to MaxAI Portal.'
+    : '你好 Max，我需要 MaxAI Portal 的登录帮助。', SUPPORT.wa);
+
+  /* 注册页「没有邀请码？」按钮 */
+  const nwa = $('#noCodeWa');
+  if (nwa) nwa.href = whatsappUrl(lang === 'en'
+    ? 'Hi Max, I need an invite code for MaxAI Portal.'
+    : '你好 Max，我需要一个 MaxAI Portal 的邀请码。', SUPPORT.wa);
+
+  /* 邀请链接带来的邀请码 */
   const codeInput = $('#registerForm input[name=invite_code]');
   if (codeInput) codeInput.value = state.inviteCode || '';
   if (state.inviteCode) {
@@ -1777,10 +1931,17 @@ async function probeFirstAdmin() {
     const res = await sb.rpc('first_admin_available');
     if (res.error) throw res.error;
     if (res.data === true) {
+      /* 空库：第一账号就是超级管理员，此时不需要邀请码 */
+      $('#inviteField').hidden = true;
+      const ic = $('#inviteCode');
+      if (ic) { ic.required = false; ic.value = ''; }
       $('#registerHint').textContent = t('首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。');
       if (!state.inviteCode) switchAuthTab('register');
     } else {
-      $('#registerHint').textContent = t('注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。');
+      $('#inviteField').hidden = false;
+      const ic2 = $('#inviteCode');
+      if (ic2) ic2.required = true;
+      $('#registerHint').textContent = t('注册需要邀请码。没有邀请码？点上面的 WhatsApp 联系管理员。');
     }
   } catch (e) {
     const msg = String((e && e.message) || '');
@@ -1789,8 +1950,8 @@ async function probeFirstAdmin() {
     if (msg.indexOf('does not exist') !== -1 || msg.indexOf('function') !== -1) {
       banner.className = 'auth-banner';
       banner.textContent = lang === 'en'
-        ? 'Database not initialized: run the setup SQL (Setup SQL & guide), then reload.'
-        : '数据库还没初始化：先执行「查看建表 SQL / 配置说明」里的初始化 SQL，然后刷新本页。';
+        ? 'Database not initialized. Ask the admin to run supabase-schema.sql, then reload.'
+        : '数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。';
     } else {
       banner.className = 'auth-banner danger';
       banner.textContent = lang === 'en'
@@ -1824,6 +1985,177 @@ function editCfg() {
   location.reload();
 }
 
+/* 密码显示 / 隐藏 */
+const EYE_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.4 10.4 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 5.1-5.9"/><path d="M9.9 4.2A10.5 10.5 0 0 1 12 4c6.4 0 10 7 10 7a18.4 18.4 0 0 1-2.2 3.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
+
+function togglePw(btn) {
+  const wrap = btn.parentElement;
+  const input = wrap.querySelector('input');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.innerHTML = show ? EYE_OFF : EYE_ON;
+  btn.setAttribute('aria-label', show ? 'hide password' : 'show password');
+}
+
+function initPwToggles() {
+  $$('.pw-toggle').forEach(function (b) { b.innerHTML = EYE_ON; });
+}
+
+/* 忘记密码：发重置邮件 */
+function openForgot() {
+  const loginEmail = ($('#loginForm input[name=email]') || {}).value || '';
+  openModal(t('重置密码'),
+    '<form id="forgotForm" novalidate>' +
+      '<p class="hint" style="margin:0 0 14px">' + esc(t('输入注册时用的邮箱，我们会发一封重置密码的邮件给你。')) + '</p>' +
+      '<label class="field"><span>' + esc(t('邮箱')) + '</span>' +
+        '<input class="input" name="email" type="email" required value="' + esc(loginEmail.trim()) + '" placeholder="' + esc(t('你的邮箱')) + '"></label>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('发送重置邮件')) + '</button>' +
+      '</div></form>');
+  $('#forgotForm').addEventListener('submit', doForgot);
+}
+
+async function doForgot(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  const email = form.email.value.trim().toLowerCase();
+  errBox.textContent = '';
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errBox.textContent = t('邮箱格式不正确'); return; }
+
+  btn.disabled = true;
+  btn.textContent = t('发送中…');
+  try {
+    const opts = {};
+    if (/^https?:$/.test(location.protocol)) opts.redirectTo = location.origin + location.pathname;
+    const res = await sb.auth.resetPasswordForEmail(email, opts);
+    if (res.error) throw res.error;
+    closeModal();
+    toast(t('如果该邮箱已注册，重置邮件已发送，请查收（含垃圾箱）'), 'ok');
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('发送重置邮件');
+  }
+}
+
+/* 点邮件里的链接回来后，设置新密码 */
+function openResetPassword() {
+  openModal(t('设置新密码'),
+    '<form id="resetForm" novalidate>' +
+      '<p class="hint" style="margin:0 0 14px">' + esc(t('请输入新密码（至少 6 位）。')) + '</p>' +
+      '<label class="field"><span>' + esc(t('新密码')) + '</span>' +
+        '<div class="pw-wrap"><input class="input" name="pwd" type="password" required minlength="6">' +
+        '<button class="pw-toggle" type="button" data-act="toggle-pw" tabindex="-1"></button></div></label>' +
+      '<label class="field" style="margin-top:10px"><span>' + esc(t('确认密码')) + '</span>' +
+        '<input class="input" name="pwd2" type="password" required minlength="6"></label>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('稍后')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存新密码')) + '</button>' +
+      '</div></form>');
+  initPwToggles();
+  $('#resetForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const btn = f.querySelector('[type=submit]');
+    const errBox = f.querySelector('.form-error');
+    const p1 = f.pwd.value, p2 = f.pwd2.value;
+    errBox.textContent = '';
+    if (p1.length < 6) { errBox.textContent = t('密码至少 6 位'); return; }
+    if (p1 !== p2) { errBox.textContent = t('两次输入的密码不一致'); return; }
+    btn.disabled = true;
+    btn.textContent = t('保存中…');
+    try {
+      const res = await sb.auth.updateUser({ password: p1 });
+      if (res.error) throw res.error;
+      closeModal();
+      toast(t('密码已更新，请用新密码登录'), 'ok');
+      try { await sb.auth.signOut(); } catch (e2) { /* 忽略 */ }
+      showAuth();
+    } catch (e) {
+      errBox.textContent = errMsg(e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t('保存新密码');
+    }
+  });
+}
+
+/* 使用条款 / 隐私政策 */
+function legalText(which) {
+  const L = lang === 'en' ? {
+    terms: {
+      title: 'Terms of Service',
+      body: [
+        ['1. Orders become valid after confirmation', 'Placing an order in this system does not by itself create a binding order. An order is only valid once an administrator confirms it.'],
+        ['2. Stock, price and delivery', 'Even after confirmation, availability, pricing or lead time may change due to stock, materials or supplier changes. We do not guarantee that price, stock or delivery date stays unchanged; any change will be communicated to you first.'],
+        ['3. Your account', 'Your account is for your own use. Keep your password safe and do not share or transfer the account. Contact the administrator immediately if you notice anything unusual.'],
+        ['4. Sensitive information', 'Do not enter bank card numbers, credit card numbers, passwords or other sensitive financial information in chat, remarks or any field of this system.'],
+        ['5. Changes and cancellations', 'You may request a change or cancellation before shipment. After shipment, requests are handled case by case; unconditional refunds are not promised.'],
+        ['6. Limitation of liability', 'This system is provided “as is”. We are not liable for indirect losses caused by interruptions or data delays.'],
+        ['7. Governing law', 'These terms are governed by the laws of Singapore.']
+      ]
+    },
+    privacy: {
+      title: 'Privacy Policy',
+      body: [
+        ['1. What we collect', 'We collect only what is needed to process your order: your name, contact phone number, email address and order details (product, quantity, amount, status).'],
+        ['2. What we never collect', 'We do not collect your NRIC / FIN, bank account numbers or credit card numbers.'],
+        ['3. How we use it', 'Your data is used to process, ship and support your orders, and to contact you about them.'],
+        ['4. Storage and access', 'Data is stored in Supabase (a cloud database). Access is role-based: super admin, company admin, and you (your own records).'],
+        ['5. No selling, no ads', 'We do not sell or rent your personal data, and we do not share it with third parties for advertising.'],
+        ['6. Your rights (PDPA)', 'You may ask to access, correct or delete your personal data. We will respond within a reasonable time.'],
+        ['7. Contact', 'WhatsApp Max Dee at +6587171111.']
+      ]
+    }
+  } : {
+    terms: {
+      title: '使用条款',
+      body: [
+        ['1. 订单成立', '在本系统提交订单不等于订单已成立。订单须经管理员确认后方为有效。'],
+        ['2. 库存、价格与交期', '确认后仍可能因库存、原材料或供应商变动而调整。我们不保证库存、价格或到货时间长期不变；如有变动会先与您沟通。'],
+        ['3. 账号保管', '账号仅供本人使用，请自行保管密码，切勿转让他人。发现异常请立即联系管理员。'],
+        ['4. 敏感信息', '请勿在聊天、备注或本系统的任何栏位填写银行卡号、信用卡号、密码等敏感金融信息。'],
+        ['5. 修改与取消', '发货前可申请修改或取消订单；发货后按个案处理，不承诺无条件退款。'],
+        ['6. 责任范围', '本系统按“现状”提供，不对因系统中断或数据延迟造成的间接损失承担责任。'],
+        ['7. 适用法律', '本条款受新加坡法律管辖。']
+      ]
+    },
+    privacy: {
+      title: '隐私政策',
+      body: [
+        ['1. 我们收集什么', '只收集处理订单所必需的资料：姓名、联系电话、电子邮箱，以及订单信息（商品、数量、金额、状态）。'],
+        ['2. 我们不收集什么', '不收集身份证 / FIN、银行账号或信用卡号。'],
+        ['3. 用途', '用于处理、发货与订单相关的客服沟通，以及就订单事宜联系您。'],
+        ['4. 存放与访问', '数据存放于 Supabase 云数据库，按角色权限访问：超级管理员、公司管理员、以及您本人（仅自己的记录）。'],
+        ['5. 不出售、不投放广告', '我们不出售、不出租您的个人资料，也不提供给第三方用于广告。'],
+        ['6. 您的权利（PDPA）', '您可以要求查阅、更正或删除您的个人资料，我们会在合理时间内处理。'],
+        ['7. 联系方式', 'WhatsApp 联系 Max Dee：+6587171111。']
+      ]
+    }
+  };
+  return L[which] || L.terms;
+}
+
+function openLegal(which) {
+  const doc = legalText(which);
+  openModal(t(doc.title),
+    '<div class="legal-body">' +
+      doc.body.map(function (row) {
+        return '<h4>' + esc(row[0]) + '</h4><p>' + esc(row[1]) + '</p>';
+      }).join('') +
+      '<div class="legal-meta">' + esc(t('最后更新：2026-11 · 如需纸质版本或提出异议，请联系 WhatsApp Max Dee +6587171111')) + '</div>' +
+    '</div>' +
+    '<div class="form-actions"><button class="btn primary" type="button" data-close>' + esc(t('我知道了')) + '</button></div>', 'lg');
+}
+
 async function doLogin(event) {
   event.preventDefault();
   const form = event.target;
@@ -1837,6 +2169,14 @@ async function doLogin(event) {
   const password = form.password.value;
   if (!email || !password) { err.textContent = t('请输入邮箱和密码'); return; }
 
+  /* 记住我：决定 token 存 localStorage 还是 sessionStorage */
+  const remember = !$('#rememberMe') || $('#rememberMe').checked;
+  try {
+    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0');
+    if (remember) localStorage.setItem('maxai.email', email);
+    else localStorage.removeItem('maxai.email');
+  } catch (e) { /* 忽略 */ }
+
   btn.disabled = true;
   btn.textContent = t('登录中…');
   try {
@@ -1844,6 +2184,7 @@ async function doLogin(event) {
     if (res.error) throw res.error;
     if (!res.data.session) throw new Error('no session');
     state.session = res.data.session;
+    if (!remember) demoteAuthStorage();
     await enterApp();
   } catch (e) {
     err.textContent = errMsg(e);
@@ -1872,6 +2213,7 @@ async function doRegister(event) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = t('邮箱格式不正确'); return; }
   if (pwd.length < 6) { err.textContent = t('密码至少 6 位'); return; }
   if (pwd !== pwd2) { err.textContent = t('两次输入的密码不一致'); return; }
+  if (!$('#agreeTerms').checked) { err.textContent = t('请先阅读并同意使用条款和隐私政策'); return; }
 
   btn.disabled = true;
   btn.textContent = t('处理中…');
@@ -1904,6 +2246,7 @@ async function doRegister(event) {
 
     if (res.data.session) {
       state.session = res.data.session;
+      $('#agreeTerms').checked = false;
       toast(first.data
         ? (lang === 'en' ? 'Setup complete — you are the super admin' : '初始化完成，你已成为超级管理员')
         : (lang === 'en' ? 'Account created' : '注册成功'), 'ok');
@@ -1914,6 +2257,7 @@ async function doRegister(event) {
         : '注册成功！请到邮箱点击确认链接后再登录', 'ok');
       switchAuthTab('login');
       form.reset();
+      $('#agreeTerms').checked = false;
     }
   } catch (e) {
     err.textContent = errMsg(e);
@@ -2011,7 +2355,7 @@ function navItems() {
   if (isStaff()) list.push('users');
   if (isSuper()) list.push('companies');
   list.push('support');
-  list.push('setup');
+  if (isSuper()) list.push('setup');
   return list;
 }
 
@@ -2048,6 +2392,7 @@ async function switchView(id) {
   if (!VIEW_META[id]) return;
   if ((id === 'companies' || id === 'users') && !isStaff()) return;
   if (id === 'companies' && !isSuper()) return;
+  if (id === 'setup' && !isSuper()) return;
 
   state.view = id;
   $$('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + id); });
@@ -2969,11 +3314,13 @@ function setupHtml() {
 
   '<div class="card">' +
     '<div class="card-head"><h3>' + esc(t('数据库初始化 SQL')) + '</h3>' +
-      '<div class="head-actions">' +
+      '<span class="badge muted">' + esc(t('不放在网页里')) + '</span></div>' +
+    '<div class="card-body">' +
+      '<p class="hint" style="margin:0 0 10px">' + esc(t('为了防止访客看到表结构和权限策略，初始化 SQL 不再写进这个网页。请在部署包里的 supabase-schema.sql 文件中打开，整段复制到 Supabase → SQL Editor 执行。')) + '</p>' +
+      '<div class="copy-box"><code>supabase-schema.sql</code>' +
         '<a class="btn sm" href="https://supabase.com/dashboard" target="_blank" rel="noopener">' + esc(t('打开 Supabase')) + '</a>' +
-        '<button class="btn primary sm" type="button" data-act="copy-sql">' + esc(t('复制 SQL')) + '</button>' +
-      '</div></div>' +
-    '<div class="code-wrap"><pre class="sql-block">' + esc(SETUP_SQL) + '</pre></div>' +
+      '</div>' +
+    '</div>' +
   '</div>' +
 
   '<div class="card">' +
@@ -3136,8 +3483,8 @@ function renderAuthContact() {
   const box = $('#authContact');
   if (!box) return;
   box.innerHTML = (lang === 'en'
-    ? 'Need help? WhatsApp <b>' + esc(SUPPORT.phone) + '</b> · Admin <b>' + esc(SUPPORT.name) + '</b>'
-    : '遇到问题？WhatsApp 联系 <b>' + esc(SUPPORT.phone) + '</b> · 管理员 <b>' + esc(SUPPORT.name) + '</b>');
+    ? 'or call <b>' + esc(SUPPORT.phone) + '</b> · <b>' + esc(SUPPORT.name) + '</b>'
+    : '或致电 <b>' + esc(SUPPORT.phone) + '</b> · <b>' + esc(SUPPORT.name) + '</b>');
 }
 
 /* ----------------------------------------------------------------------------
@@ -3168,7 +3515,10 @@ function bindEvents() {
     switch (act) {
       case 'tab': switchAuthTab(el.dataset.tab); break;
       case 'lang': setLang(el.dataset.lang); break;
-      case 'guide': openModal(t('查看建表 SQL / 配置说明'), setupHtml(), 'lg'); break;
+      case 'guide': openModal(t('管理员说明'), setupHtml(), 'lg'); break;
+      case 'legal': openLegal(el.dataset.legal); break;
+      case 'forgot': openForgot(); break;
+      case 'toggle-pw': togglePw(el); break;
       case 'save-cfg': saveCfg(); break;
       case 'cfg-admin': state.cfgAdminMode = true; showAuth(); break;
       case 'edit-cfg': editCfg(); break;
@@ -3199,7 +3549,6 @@ function bindEvents() {
         break;
       }
       case 'del-company': deleteCompany(id); break;
-      case 'copy-sql': copyText(SETUP_SQL, t('初始化 SQL 已复制')); break;
       case 'copy-cfg-code': copyText('const SUPABASE_URL = ' + JSON.stringify(CFG_URL) + ';\nconst SUPABASE_ANON_KEY = ' + JSON.stringify(CFG_ANON) + ';', t('已复制到剪贴板')); break;
       case 'copy-support': copyText(SUPPORT.phone, t('已复制到剪贴板')); break;
       case 'copy-el': copyEl(el.dataset.target); break;
@@ -3261,6 +3610,7 @@ async function boot() {
   if (/^MX-[A-Z0-9]{4,10}$/.test(cleanInvite)) state.inviteCode = cleanInvite;
 
   bindEvents();
+  initPwToggles();
   renderAuthContact();
 
   if (!isConfigured) { showAuth(); return; }
@@ -3278,6 +3628,9 @@ async function boot() {
       showAuth();
     } else if (evt === 'SIGNED_IN' && session) {
       state.session = session;
+    } else if (evt === 'PASSWORD_RECOVERY') {
+      /* 点了「重置密码」邮件里的链接 */
+      openResetPassword();
     }
   });
 
