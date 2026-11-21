@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#05070e">
-<meta name="description" content="MaxAI Portal · 多公司订单中台">
-<title>MaxAI Portal · 多公司订单中台</title>
+<meta name="description" content="MaxAI Portal">
+<title>MaxAI Portal</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect width='48' height='48' rx='12' fill='%230b1020'/><path d='M13 34V16l11 10 11-10v18' fill='none' stroke='%2322d3ee' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'/><circle cx='37' cy='12' r='3' fill='%238b5cf6'/></svg>">
 <style>/* ==========================================================================
    MaxAI Portal · 深色科技风主题
@@ -101,6 +101,10 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .btn.sm{height:32px;padding:0 11px;font-size:12.5px;border-radius:9px}
 .btn.block{width:100%}
 .btn.icon{width:38px;padding:0}
+.btn svg{width:16px;height:16px;flex:none}
+#btnMenu svg{width:20px;height:20px}
+#btnMenu{color:#cfd8ea}
+#btnMenu:hover{color:#fff;background:rgba(255,255,255,.10)}
 .btn.light{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);color:#fff}
 .btn.light:hover{background:rgba(255,255,255,.16)}
 .btn.dark-ghost{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.09);color:#c3cde0}
@@ -621,9 +625,11 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .agent-name{font-size:15px;font-weight:800;color:#fff}
 .agent-role{font-size:12px;color:var(--muted);margin-top:2px}
 .agent-phone{
-  font-family:var(--mono);font-size:27px;font-weight:800;letter-spacing:.01em;color:#fff;
-  margin:18px 0 3px;font-variant-numeric:tabular-nums;
+  display:inline-block;font-family:var(--mono);font-size:26px;font-weight:800;
+  letter-spacing:-.01em;color:#fff;margin:18px 0 3px;font-variant-numeric:tabular-nums;
+  text-decoration:none;white-space:nowrap;
 }
+.agent-phone:hover{color:#7ce9ff}
 .agent-cap{font-size:12px;color:var(--muted)}
 .support-tips{display:flex;flex-direction:column;gap:11px;margin-top:2px}
 .support-tip{display:flex;gap:10px;font-size:13px;color:var(--ink-2);line-height:1.6}
@@ -664,20 +670,38 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 
     <!-- 未连接 Supabase 时显示 -->
     <div class="cfg-panel" id="cfgPanel" hidden>
-      <div class="cfg-head">
-        <span class="cfg-step" data-i18n="连接 Supabase">连接 Supabase</span>
-        <span class="muted sm-text" data-i18n="只需填一次">只需填一次</span>
+      <!-- 访客看到的提示（站点已部署但没写死密钥时） -->
+      <div id="cfgGuest" hidden>
+        <div class="cfg-head">
+          <span class="cfg-step" data-i18n="本站还没连接数据库">本站还没连接数据库</span>
+          <span class="badge warn">OFFLINE</span>
+        </div>
+        <p class="hint" style="margin:8px 0 14px" data-i18n="页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。">页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。</p>
+        <div class="copy-box" style="margin-bottom:10px">
+          <code>Max Dee · +65 87171111</code>
+          <a class="btn whatsapp sm" target="_blank" rel="noopener" id="cfgGuestWa" data-i18n="WhatsApp">WhatsApp</a>
+        </div>
+        <p class="hint" data-i18n="（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）">（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）</p>
+        <button class="link" type="button" data-act="cfg-admin" style="margin-top:12px;font-size:12px" data-i18n="我是管理员，就在这里填">我是管理员，就在这里填</button>
       </div>
-      <p class="hint" style="margin:7px 0 14px" data-i18n="在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：">在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：</p>
-      <label class="field"><span>Project URL</span>
-        <input class="input" id="cfgUrl" placeholder="https://abcdefgh.supabase.co" autocomplete="off" spellcheck="false">
-      </label>
-      <label class="field" style="margin-top:10px"><span>anon public key</span>
-        <input class="input" id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." autocomplete="off" spellcheck="false">
-      </label>
-      <div class="form-error" id="cfgError"></div>
-      <button class="btn primary block" type="button" data-act="save-cfg" style="margin-top:12px" data-i18n="保存并连接">保存并连接</button>
-      <p class="hint" style="margin-top:10px" data-i18n="只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。">只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。</p>
+
+      <!-- 管理员填密钥 -->
+      <div id="cfgForm" hidden>
+        <div class="cfg-head">
+          <span class="cfg-step" data-i18n="连接 Supabase">连接 Supabase</span>
+          <span class="muted sm-text" data-i18n="只需填一次">只需填一次</span>
+        </div>
+        <p class="hint" style="margin:7px 0 14px" data-i18n="在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：">在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：</p>
+        <label class="field"><span>Project URL</span>
+          <input class="input" id="cfgUrl" placeholder="https://abcdefgh.supabase.co" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field" style="margin-top:10px"><span>anon public key</span>
+          <input class="input" id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." autocomplete="off" spellcheck="false">
+        </label>
+        <div class="form-error" id="cfgError"></div>
+        <button class="btn primary block" type="button" data-act="save-cfg" style="margin-top:12px" data-i18n="保存并连接">保存并连接</button>
+        <p class="hint" style="margin-top:10px" data-i18n="只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。">只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。</p>
+      </div>
     </div>
 
     <div id="authTabsWrap">
@@ -908,7 +932,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
                   <div class="agent-role" data-i18n="管理员">管理员</div>
                 </div>
               </div>
-              <div class="agent-phone" id="supportPhone">+65 87171111</div>
+              <a class="agent-phone" id="supportPhone" href="tel:+6587171111">+6587171111</a>
               <div class="agent-cap" data-i18n="WhatsApp / 电话同号，遇到问题直接联系">WhatsApp / 电话同号，遇到问题直接联系</div>
               <div class="share-actions">
                 <a class="btn whatsapp" id="supportWa" target="_blank" rel="noopener">
@@ -916,7 +940,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
                   <span data-i18n="WhatsApp 联系">WhatsApp 联系</span>
                 </a>
                 <a class="btn" id="supportTel" data-i18n="拨打电话">拨打电话</a>
-                <button class="btn ghost" type="button" data-act="copy-support">复制号码</button>
+                <button class="btn ghost" type="button" data-act="copy-support" data-i18n="复制号码">复制号码</button>
               </div>
             </div>
           </div>
@@ -981,8 +1005,8 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 /* ----------------------------------------------------------------------------
  * 1. Supabase 配置（也可以在登录页直接粘贴，存在浏览器本地）
  * -------------------------------------------------------------------------- */
-const SUPABASE_URL = 'https://djgxifkricznigwtlaba.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_RdKokILTvbPtqjR9EUHB-A_7iW9EuEc';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const CFG_STORE_KEY = 'maxai.supabase';
 
@@ -1011,7 +1035,7 @@ const CFG_SOURCE = (savedCfg && savedCfg.url)
 /* ----------------------------------------------------------------------------
  * 2. 数据库初始化 SQL（构建时注入，见 supabase-schema.sql）
  * -------------------------------------------------------------------------- */
-const SETUP_SQL = "-- ============================================================================\n-- 云序 · 多公司订单管理系统 —— Supabase 初始化脚本\n-- 用法：Supabase 控制台 → SQL Editor → 新建查询 → 整段粘贴 → Run\n-- 可重复执行（表 / 函数 / 策略都做了 if not exists / drop if exists）\n-- ============================================================================\n\ncreate extension if not exists pgcrypto;\n\n-- ---------------------------------------------------------------------------\n-- 1) 公司表\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.companies (\n  id          uuid primary key default gen_random_uuid(),\n  name        text not null unique,                              -- 公司名称\n  code        text unique,                                       -- 公司编号（选填）\n  contact     text,                                              -- 联系人\n  phone       text,                                              -- 联系电话\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\n\n-- ---------------------------------------------------------------------------\n-- 2) 用户资料表：与 auth.users 一一对应，存放角色与归属公司\n--    role: super_admin 超级管理员 / company_admin 公司管理员 / user 普通用户\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.profiles (\n  id          uuid primary key references auth.users(id) on delete cascade,\n  email       text,\n  full_name   text,\n  role        text not null default 'user'\n              check (role in ('super_admin','company_admin','user')),\n  company_id  uuid references public.companies(id) on delete set null,\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\ncreate index if not exists profiles_company_idx on public.profiles(company_id);\n\n-- ---------------------------------------------------------------------------\n-- 3) 邀请表（v2：邀请码 + 二维码，不再依赖邮箱）\n--    管理员生成 6 位邀请码 → 前端画成二维码 / 分享到 WhatsApp\n--    对方注册时填邀请码，触发器自动写入角色与公司\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.invites (\n  id          uuid primary key default gen_random_uuid(),\n  code        text not null,\n  role        text not null default 'user'\n              check (role in ('company_admin','user')),\n  company_id  uuid not null references public.companies(id) on delete cascade,\n  note        text,\n  email       text,\n  invited_by  uuid references public.profiles(id) on delete set null,\n  status      text not null default 'pending'\n              check (status in ('pending','accepted','revoked')),\n  used_by     uuid references auth.users(id) on delete set null,\n  created_at  timestamptz not null default now(),\n  accepted_at timestamptz\n);\n\n-- v1（按邮箱邀请）→ v2（按邀请码）兼容迁移：老库直接跑这几行\nalter table public.invites add column if not exists code text;\nalter table public.invites add column if not exists note text;\nalter table public.invites add column if not exists used_by uuid references auth.users(id) on delete set null;\nalter table public.invites alter column email drop not null;\nupdate public.invites\n   set code = 'MX-' || upper(substr(md5(id::text || random()::text), 1, 6))\n where code is null;\n\ncreate unique index if not exists invites_code_key on public.invites (code);\ncreate index if not exists invites_company_idx on public.invites (company_id);\n\n-- ---------------------------------------------------------------------------\n-- 4) 订单表\n--    company_id = 归属公司（数据隔离核心字段）\n--    user_id    = 录入人\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.orders (\n  id             uuid primary key default gen_random_uuid(),\n  order_no       text not null default\n                 ('ORD-' || to_char(now(),'YYYYMMDD') || '-' ||\n                  upper(substr(md5(random()::text), 1, 6))),\n  company_id     uuid not null references public.companies(id) on delete cascade,\n  user_id        uuid not null references public.profiles(id) on delete cascade,\n  customer_name  text not null,                                  -- 客户姓名\n  customer_phone text,                                           -- 联系方式\n  product_name   text not null,                                  -- 商品名称\n  quantity       numeric not null default 1 check (quantity >= 0),\n  amount         numeric not null default 0 check (amount >= 0), -- 金额\n  status         text not null default 'pending'\n                 check (status in ('pending','confirmed','shipped','completed','cancelled')),\n  ordered_at     timestamptz not null default now(),             -- 下单时间\n  remark         text,\n  created_at     timestamptz not null default now(),\n  updated_at     timestamptz not null default now()\n);\ncreate index if not exists orders_company_idx on public.orders (company_id, ordered_at desc);\ncreate index if not exists orders_user_idx    on public.orders (user_id);\ncreate index if not exists orders_status_idx  on public.orders (status);\n\n-- ---------------------------------------------------------------------------\n-- 5) 新用户注册时自动建档\n--    · 库里还没有任何用户 → 第一个注册者自动成为超级管理员（完成初始化）\n--    · 注册时带了有效邀请码 → 自动写入邀请里的角色和公司，并把邀请标记为已用\n--    · 其他情况 → 普通用户（等待管理员分配公司）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.handle_new_user()\nreturns trigger\nlanguage plpgsql\nsecurity definer\nset search_path = public\nas $$\ndeclare\n  v_inv   public.invites%rowtype;\n  v_total int;\n  v_code  text;\nbegin\n  select count(*) into v_total from public.profiles;\n\n  if v_total = 0 then\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'super_admin')\n    on conflict (id) do nothing;\n    return new;\n  end if;\n\n  v_code := nullif(upper(trim(coalesce(new.raw_user_meta_data->>'invite_code',''))), '');\n  if v_code is not null then\n    select * into v_inv\n    from public.invites\n    where upper(code) = v_code and status = 'pending'\n    limit 1;\n  end if;\n\n  if v_inv.id is not null then\n    insert into public.profiles (id, email, full_name, role, company_id)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            v_inv.role, v_inv.company_id)\n    on conflict (id) do nothing;\n\n    update public.invites\n       set status = 'accepted',\n           accepted_at = now(),\n           used_by = new.id,\n           email = coalesce(email, new.email)\n     where id = v_inv.id;\n  else\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'user')\n    on conflict (id) do nothing;\n  end if;\n\n  return new;\nend;\n$$;\n\ndrop trigger if exists on_auth_user_created on auth.users;\ncreate trigger on_auth_user_created\n  after insert on auth.users\n  for each row execute function public.handle_new_user();\n\n-- ---------------------------------------------------------------------------\n-- 6) updated_at 自动维护\n-- ---------------------------------------------------------------------------\ncreate or replace function public.touch_updated_at()\nreturns trigger language plpgsql as $$\nbegin\n  new.updated_at := now();\n  return new;\nend;\n$$;\n\ndrop trigger if exists orders_touch on public.orders;\ncreate trigger orders_touch\n  before update on public.orders\n  for each row execute function public.touch_updated_at();\n\n-- ---------------------------------------------------------------------------\n-- 7) 权限判定函数（security definer：绕过 RLS 读取当前用户身份，避免策略递归）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.fn_role()\nreturns text language sql stable security definer set search_path = public as $$\n  select role from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_company_id()\nreturns uuid language sql stable security definer set search_path = public as $$\n  select company_id from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_is_super()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'super_admin' and status = 'active'\n  );\n$$;\n\ncreate or replace function public.fn_is_company_admin()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'company_admin' and status = 'active'\n  );\n$$;\n\n-- 注册前校验邀请码（返回角色/公司，用于注册页提示；不泄露其他信息）\ncreate or replace function public.check_invite_code(p_code text)\nreturns jsonb\nlanguage sql\nstable\nsecurity definer\nset search_path = public\nas $$\n  select coalesce(\n    (select jsonb_build_object('ok', true, 'role', i.role,\n                               'company_id', i.company_id, 'company', c.name)\n       from public.invites i\n       join public.companies c on c.id = i.company_id\n      where upper(i.code) = upper(trim(coalesce(p_code, '')))\n        and i.status = 'pending'\n      limit 1),\n    jsonb_build_object('ok', false)\n  );\n$$;\n\n-- 是否允许“首个管理员”注册（系统中还没有任何用户时为 true）\ncreate or replace function public.first_admin_available()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select not exists (select 1 from public.profiles);\n$$;\n\ndrop function if exists public.check_invite(text);\n\ngrant execute on function public.check_invite_code(text)  to anon, authenticated;\ngrant execute on function public.first_admin_available() to anon, authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 8) 仪表盘统计（security invoker：RLS 照常生效，不同角色只统计自己看得到的数据）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.dashboard_stats(p_days int default 7, p_tz text default 'Asia/Shanghai')\nreturns jsonb\nlanguage sql\nstable\nsecurity invoker\nset search_path = public\nas $$\n  with params as (\n    select least(greatest(coalesce(p_days, 7), 1), 90) as days,\n           coalesce(nullif(trim(p_tz), ''), 'Asia/Shanghai') as tz\n  ),\n  tzd as (\n    select days, tz, (now() at time zone tz)::date as d_today\n    from params\n  ),\n  bounds as (\n    select days, tz, d_today,\n           date_trunc('month', d_today::timestamp)::date as month_start,\n           (d_today - (days - 1))                        as first_day\n    from tzd\n  ),\n  loc as (\n    select o.*,\n           (o.ordered_at at time zone (select tz from params))::date as local_day\n    from public.orders o\n  ),\n  agg as (\n    select count(*)::int                                            as total,\n           coalesce(sum(l.amount), 0)::numeric                      as amount,\n           (count(*) filter (where l.status = 'pending'))::int      as pending,\n           (count(*) filter (where l.status = 'confirmed'))::int    as confirmed,\n           (count(*) filter (where l.status = 'shipped'))::int      as shipped,\n           (count(*) filter (where l.status = 'completed'))::int    as completed,\n           (count(*) filter (where l.status = 'cancelled'))::int    as cancelled,\n           (count(*) filter (where l.local_day >= b.month_start))::int as month_count,\n           coalesce(sum(l.amount) filter (where l.local_day >= b.month_start), 0)::numeric as month_amount\n    from loc l cross join bounds b\n  ),\n  days as (\n    select g::date as d\n    from bounds b,\n         generate_series(b.first_day::timestamp, b.d_today::timestamp, interval '1 day') g\n  ),\n  daily as (\n    select days.d as day,\n           count(l.id)::int                    as cnt,\n           coalesce(sum(l.amount), 0)::numeric as amount\n    from days\n    left join loc l on l.local_day = days.d\n    group by days.d\n    order by days.d\n  )\n  select jsonb_build_object(\n    'agg',   (select to_jsonb(agg) from agg),\n    'daily', (select coalesce(\n                jsonb_agg(jsonb_build_object('day', day, 'count', cnt, 'amount', amount) order by day),\n                '[]'::jsonb)\n              from daily)\n  );\n$$;\n\ngrant execute on function public.dashboard_stats(int, text) to authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 9) 开启行级安全（RLS）\n-- ---------------------------------------------------------------------------\nalter table public.companies enable row level security;\nalter table public.profiles  enable row level security;\nalter table public.invites   enable row level security;\nalter table public.orders    enable row level security;\n\n-- 基础表权限（真正的过滤由下面的 RLS 策略完成）\ngrant select, insert, update, delete\n  on public.companies, public.profiles, public.invites, public.orders\n  to authenticated;\n\n-- --------------------------- 公司 companies --------------------------------\ndrop policy if exists companies_select on public.companies;\ncreate policy companies_select on public.companies\n  for select to authenticated\n  using ( public.fn_is_super() or id = public.fn_company_id() );\n\ndrop policy if exists companies_write on public.companies;\ncreate policy companies_write on public.companies\n  for all to authenticated\n  using ( public.fn_is_super() )\n  with check ( public.fn_is_super() );\n\n-- --------------------------- 用户 profiles --------------------------------\n-- 本人可读；超管可读全部；公司管理员可读本公司成员\ndrop policy if exists profiles_select on public.profiles;\ncreate policy profiles_select on public.profiles\n  for select to authenticated\n  using (\n    id = auth.uid()\n    or public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- 超管可改全部；公司管理员只能改本公司成员，且不能碰超级管理员\ndrop policy if exists profiles_update on public.profiles;\ncreate policy profiles_update on public.profiles\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists profiles_delete on public.profiles;\ncreate policy profiles_delete on public.profiles\n  for delete to authenticated\n  using ( public.fn_is_super() );\n\n-- --------------------------- 邀请 invites --------------------------------\ndrop policy if exists invites_select on public.invites;\ncreate policy invites_select on public.invites\n  for select to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_insert on public.invites;\ncreate policy invites_insert on public.invites\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists invites_update on public.invites;\ncreate policy invites_update on public.invites\n  for update to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) )\n  with check ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_delete on public.invites;\ncreate policy invites_delete on public.invites\n  for delete to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\n-- --------------------------- 订单 orders --------------------------------\n-- 超管看全部；公司管理员看本公司；普通用户只看自己的\ndrop policy if exists orders_select on public.orders;\ncreate policy orders_select on public.orders\n  for select to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n    or ( company_id = public.fn_company_id() and user_id = auth.uid() )\n  );\n\n-- 录入：公司必须是自己的公司；普通用户只能录自己的单\ndrop policy if exists orders_insert on public.orders;\ncreate policy orders_insert on public.orders\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( company_id = public.fn_company_id()\n         and ( public.fn_is_company_admin() or user_id = auth.uid() ) )\n  );\n\n-- 修改：仅超管 / 本公司管理员（普通用户只能查看和录入）\ndrop policy if exists orders_update on public.orders;\ncreate policy orders_update on public.orders\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\ndrop policy if exists orders_delete on public.orders;\ncreate policy orders_delete on public.orders\n  for delete to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- ---------------------------------------------------------------------------\n-- 10) 收尾：把控制台手动创建的历史账号补一份档案（可选）\n-- ---------------------------------------------------------------------------\ninsert into public.profiles (id, email, full_name)\nselect u.id, u.email,\n       coalesce(nullif(u.raw_user_meta_data->>'full_name',''), split_part(u.email,'@',1))\nfrom auth.users u\non conflict (id) do nothing;\n\n-- 如需手动指定超级管理员（把邮箱换成你的账号）：\n-- update public.profiles set role = 'super_admin' where email = 'you@example.com';\n\n-- ============================================================================\n-- 初始化完成 ✅  接下来：登录系统 → 公司管理 → 新建公司 → 用户管理 → 邀请用户\n-- ============================================================================";
+const SETUP_SQL = "-- ============================================================================\n-- 云序 · 多公司订单管理系统 —— Supabase 初始化脚本\n-- 用法：Supabase 控制台 → SQL Editor → 新建查询 → 整段粘贴 → Run\n-- 可重复执行（表 / 函数 / 策略都做了 if not exists / drop if exists）\n-- ============================================================================\n\ncreate extension if not exists pgcrypto;\n\n-- ---------------------------------------------------------------------------\n-- 1) 公司表\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.companies (\n  id          uuid primary key default gen_random_uuid(),\n  name        text not null unique,                              -- 公司名称\n  code        text unique,                                       -- 公司编号（选填）\n  contact     text,                                              -- 联系人\n  phone       text,                                              -- 联系电话\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\n\n-- ---------------------------------------------------------------------------\n-- 2) 用户资料表：与 auth.users 一一对应，存放角色与归属公司\n--    role: super_admin 超级管理员 / company_admin 公司管理员 / user 普通用户\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.profiles (\n  id          uuid primary key references auth.users(id) on delete cascade,\n  email       text,\n  full_name   text,\n  role        text not null default 'user'\n              check (role in ('super_admin','company_admin','user')),\n  company_id  uuid references public.companies(id) on delete set null,\n  status      text not null default 'active'\n              check (status in ('active','disabled')),\n  created_at  timestamptz not null default now()\n);\ncreate index if not exists profiles_company_idx on public.profiles(company_id);\n\n-- ---------------------------------------------------------------------------\n-- 3) 邀请表（v2：邀请码 + 二维码，不再依赖邮箱）\n--    管理员生成 6 位邀请码 → 前端画成二维码 / 分享到 WhatsApp\n--    对方注册时填邀请码，触发器自动写入角色与公司\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.invites (\n  id          uuid primary key default gen_random_uuid(),\n  code        text not null,\n  role        text not null default 'user'\n              check (role in ('company_admin','user')),\n  company_id  uuid not null references public.companies(id) on delete cascade,\n  note        text,\n  email       text,\n  invited_by  uuid references public.profiles(id) on delete set null,\n  status      text not null default 'pending'\n              check (status in ('pending','accepted','revoked')),\n  used_by     uuid references auth.users(id) on delete set null,\n  created_at  timestamptz not null default now(),\n  accepted_at timestamptz\n);\n\n-- v1（按邮箱邀请）→ v2（按邀请码）兼容迁移：老库直接跑这几行\nalter table public.invites add column if not exists code text;\nalter table public.invites add column if not exists note text;\nalter table public.invites add column if not exists used_by uuid references auth.users(id) on delete set null;\nalter table public.invites alter column email drop not null;\nupdate public.invites\n   set code = 'MX-' || upper(substr(md5(id::text || random()::text), 1, 6))\n where code is null;\n\ncreate unique index if not exists invites_code_key on public.invites (code);\ncreate index if not exists invites_company_idx on public.invites (company_id);\n\n-- ---------------------------------------------------------------------------\n-- 4) 订单表\n--    company_id = 归属公司（数据隔离核心字段）\n--    user_id    = 录入人\n-- ---------------------------------------------------------------------------\ncreate table if not exists public.orders (\n  id             uuid primary key default gen_random_uuid(),\n  order_no       text not null default\n                 ('ORD-' || to_char(now(),'YYYYMMDD') || '-' ||\n                  upper(substr(md5(random()::text), 1, 6))),\n  company_id     uuid not null references public.companies(id) on delete cascade,\n  user_id        uuid not null references public.profiles(id) on delete cascade,\n  customer_name  text not null,                                  -- 客户姓名\n  customer_phone text,                                           -- 联系方式\n  product_name   text not null,                                  -- 商品名称\n  quantity       numeric not null default 1 check (quantity >= 0),\n  amount         numeric not null default 0 check (amount >= 0), -- 金额\n  status         text not null default 'pending'\n                 check (status in ('pending','confirmed','shipped','completed','cancelled')),\n  ordered_at     timestamptz not null default now(),             -- 下单时间\n  remark         text,\n  created_at     timestamptz not null default now(),\n  updated_at     timestamptz not null default now()\n);\ncreate index if not exists orders_company_idx on public.orders (company_id, ordered_at desc);\ncreate index if not exists orders_user_idx    on public.orders (user_id);\ncreate index if not exists orders_status_idx  on public.orders (status);\n\n-- ---------------------------------------------------------------------------\n-- 5) 新用户注册时自动建档\n--    · 库里还没有任何用户 → 第一个注册者自动成为超级管理员（完成初始化）\n--    · 注册时带了有效邀请码 → 自动写入邀请里的角色和公司，并把邀请标记为已用\n--    · 其他情况 → 普通用户（等待管理员分配公司）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.handle_new_user()\nreturns trigger\nlanguage plpgsql\nsecurity definer\nset search_path = public\nas $$\ndeclare\n  v_inv   public.invites%rowtype;\n  v_total int;\n  v_code  text;\nbegin\n  select count(*) into v_total from public.profiles;\n\n  if v_total = 0 then\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'super_admin')\n    on conflict (id) do nothing;\n    return new;\n  end if;\n\n  v_code := nullif(upper(trim(coalesce(new.raw_user_meta_data->>'invite_code',''))), '');\n  if v_code is not null then\n    select * into v_inv\n    from public.invites\n    where upper(code) = v_code and status = 'pending'\n    limit 1;\n  end if;\n\n  if v_inv.id is not null then\n    insert into public.profiles (id, email, full_name, role, company_id)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            v_inv.role, v_inv.company_id)\n    on conflict (id) do nothing;\n\n    update public.invites\n       set status = 'accepted',\n           accepted_at = now(),\n           used_by = new.id,\n           email = coalesce(email, new.email)\n     where id = v_inv.id;\n  else\n    insert into public.profiles (id, email, full_name, role)\n    values (new.id, new.email,\n            coalesce(nullif(new.raw_user_meta_data->>'full_name',''), split_part(new.email,'@',1)),\n            'user')\n    on conflict (id) do nothing;\n  end if;\n\n  return new;\nend;\n$$;\n\ndrop trigger if exists on_auth_user_created on auth.users;\ncreate trigger on_auth_user_created\n  after insert on auth.users\n  for each row execute function public.handle_new_user();\n\n-- ---------------------------------------------------------------------------\n-- 6) updated_at 自动维护\n-- ---------------------------------------------------------------------------\ncreate or replace function public.touch_updated_at()\nreturns trigger language plpgsql as $$\nbegin\n  new.updated_at := now();\n  return new;\nend;\n$$;\n\ndrop trigger if exists orders_touch on public.orders;\ncreate trigger orders_touch\n  before update on public.orders\n  for each row execute function public.touch_updated_at();\n\n-- ---------------------------------------------------------------------------\n-- 7) 权限判定函数（security definer：绕过 RLS 读取当前用户身份，避免策略递归）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.fn_role()\nreturns text language sql stable security definer set search_path = public as $$\n  select role from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_company_id()\nreturns uuid language sql stable security definer set search_path = public as $$\n  select company_id from public.profiles where id = auth.uid();\n$$;\n\ncreate or replace function public.fn_is_super()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'super_admin' and status = 'active'\n  );\n$$;\n\ncreate or replace function public.fn_is_company_admin()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select exists (\n    select 1 from public.profiles\n    where id = auth.uid() and role = 'company_admin' and status = 'active'\n  );\n$$;\n\n-- 注册前校验邀请码（返回角色/公司，用于注册页提示；不泄露其他信息）\ncreate or replace function public.check_invite_code(p_code text)\nreturns jsonb\nlanguage sql\nstable\nsecurity definer\nset search_path = public\nas $$\n  select coalesce(\n    (select jsonb_build_object('ok', true, 'role', i.role,\n                               'company_id', i.company_id, 'company', c.name)\n       from public.invites i\n       join public.companies c on c.id = i.company_id\n      where upper(i.code) = upper(trim(coalesce(p_code, '')))\n        and i.status = 'pending'\n      limit 1),\n    jsonb_build_object('ok', false)\n  );\n$$;\n\n-- 是否允许“首个管理员”注册（系统中还没有任何用户时为 true）\ncreate or replace function public.first_admin_available()\nreturns boolean language sql stable security definer set search_path = public as $$\n  select not exists (select 1 from public.profiles);\n$$;\n\ndrop function if exists public.check_invite(text);\n\ngrant execute on function public.check_invite_code(text)  to anon, authenticated;\ngrant execute on function public.first_admin_available() to anon, authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 8) 仪表盘统计（security invoker：RLS 照常生效，不同角色只统计自己看得到的数据）\n-- ---------------------------------------------------------------------------\ncreate or replace function public.dashboard_stats(p_days int default 7, p_tz text default 'Asia/Shanghai')\nreturns jsonb\nlanguage sql\nstable\nsecurity invoker\nset search_path = public\nas $$\n  with params as (\n    select least(greatest(coalesce(p_days, 7), 1), 90) as days,\n           coalesce(nullif(trim(p_tz), ''), 'Asia/Shanghai') as tz\n  ),\n  tzd as (\n    select days, tz, (now() at time zone tz)::date as d_today\n    from params\n  ),\n  bounds as (\n    select days, tz, d_today,\n           date_trunc('month', d_today::timestamp)::date as month_start,\n           (d_today - (days - 1))                        as first_day\n    from tzd\n  ),\n  loc as (\n    select o.*,\n           (o.ordered_at at time zone (select tz from params))::date as local_day\n    from public.orders o\n  ),\n  agg as (\n    select count(*)::int                                            as total,\n           coalesce(sum(l.amount), 0)::numeric                      as amount,\n           (count(*) filter (where l.status = 'pending'))::int      as pending,\n           (count(*) filter (where l.status = 'confirmed'))::int    as confirmed,\n           (count(*) filter (where l.status = 'shipped'))::int      as shipped,\n           (count(*) filter (where l.status = 'completed'))::int    as completed,\n           (count(*) filter (where l.status = 'cancelled'))::int    as cancelled,\n           (count(*) filter (where l.local_day >= b.month_start))::int as month_count,\n           coalesce(sum(l.amount) filter (where l.local_day >= b.month_start), 0)::numeric as month_amount\n    from loc l cross join bounds b\n  ),\n  days as (\n    select g::date as d\n    from bounds b,\n         generate_series(b.first_day::timestamp, b.d_today::timestamp, interval '1 day') g\n  ),\n  daily as (\n    select days.d as day,\n           count(l.id)::int                    as cnt,\n           coalesce(sum(l.amount), 0)::numeric as amount\n    from days\n    left join loc l on l.local_day = days.d\n    group by days.d\n    order by days.d\n  )\n  select jsonb_build_object(\n    'agg',   (select to_jsonb(agg) from agg),\n    'daily', (select coalesce(\n                jsonb_agg(jsonb_build_object('day', day, 'count', cnt, 'amount', amount) order by day),\n                '[]'::jsonb)\n              from daily)\n  );\n$$;\n\ngrant execute on function public.dashboard_stats(int, text) to authenticated;\n\n-- ---------------------------------------------------------------------------\n-- 9) 开启行级安全（RLS）\n-- ---------------------------------------------------------------------------\nalter table public.companies enable row level security;\nalter table public.profiles  enable row level security;\nalter table public.invites   enable row level security;\nalter table public.orders    enable row level security;\n\n-- 基础表权限（真正的过滤由下面的 RLS 策略完成）\ngrant select, insert, update, delete\n  on public.companies, public.profiles, public.invites, public.orders\n  to authenticated;\n\n-- --------------------------- 公司 companies --------------------------------\ndrop policy if exists companies_select on public.companies;\ncreate policy companies_select on public.companies\n  for select to authenticated\n  using ( public.fn_is_super() or id = public.fn_company_id() );\n\ndrop policy if exists companies_write on public.companies;\ncreate policy companies_write on public.companies\n  for all to authenticated\n  using ( public.fn_is_super() )\n  with check ( public.fn_is_super() );\n\n-- --------------------------- 用户 profiles --------------------------------\n-- 本人可读；超管可读全部；公司管理员可读本公司成员\ndrop policy if exists profiles_select on public.profiles;\ncreate policy profiles_select on public.profiles\n  for select to authenticated\n  using (\n    id = auth.uid()\n    or public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- 超管可改全部；公司管理员只能改本公司成员，且不能碰超级管理员\ndrop policy if exists profiles_update on public.profiles;\ncreate policy profiles_update on public.profiles\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists profiles_delete on public.profiles;\ncreate policy profiles_delete on public.profiles\n  for delete to authenticated\n  using ( public.fn_is_super() );\n\n-- --------------------------- 邀请 invites --------------------------------\ndrop policy if exists invites_select on public.invites;\ncreate policy invites_select on public.invites\n  for select to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_insert on public.invites;\ncreate policy invites_insert on public.invites\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin()\n         and company_id = public.fn_company_id()\n         and role <> 'super_admin' )\n  );\n\ndrop policy if exists invites_update on public.invites;\ncreate policy invites_update on public.invites\n  for update to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) )\n  with check ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\ndrop policy if exists invites_delete on public.invites;\ncreate policy invites_delete on public.invites\n  for delete to authenticated\n  using ( public.fn_is_super()\n          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );\n\n-- --------------------------- 订单 orders --------------------------------\n-- 超管看全部；公司管理员看本公司；普通用户只看自己的\ndrop policy if exists orders_select on public.orders;\ncreate policy orders_select on public.orders\n  for select to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n    or ( company_id = public.fn_company_id() and user_id = auth.uid() )\n  );\n\n-- 录入：公司必须是自己的公司；普通用户只能录自己的单\ndrop policy if exists orders_insert on public.orders;\ncreate policy orders_insert on public.orders\n  for insert to authenticated\n  with check (\n    public.fn_is_super()\n    or ( company_id = public.fn_company_id()\n         and ( public.fn_is_company_admin() or user_id = auth.uid() ) )\n  );\n\n-- 修改：仅超管 / 本公司管理员（普通用户只能查看和录入）\ndrop policy if exists orders_update on public.orders;\ncreate policy orders_update on public.orders\n  for update to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  )\n  with check (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\ndrop policy if exists orders_delete on public.orders;\ncreate policy orders_delete on public.orders\n  for delete to authenticated\n  using (\n    public.fn_is_super()\n    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )\n  );\n\n-- ---------------------------------------------------------------------------\n-- 10) 收尾：把控制台手动创建的历史账号补一份档案（可选）\n-- ---------------------------------------------------------------------------\ninsert into public.profiles (id, email, full_name)\nselect u.id, u.email,\n       coalesce(nullif(u.raw_user_meta_data->>'full_name',''), split_part(u.email,'@',1))\nfrom auth.users u\non conflict (id) do nothing;\n\n-- 如需手动指定超级管理员（把邮箱换成你的账号）：\n-- update public.profiles set role = 'super_admin' where email = 'you@example.com';\n\n-- ============================================================================\n-- 初始化完成 ✅  接下来：登录系统 → 公司管理 → 新建公司 → 用户管理 → 邀请用户\n-- ============================================================================\n\n-- 让 PostgREST 立刻识别新建的函数（否则前端可能报 function ... in the schema cache）\nnotify pgrst, 'reload schema';\n";
 
 /* ----------------------------------------------------------------------------
  * 3. 中英文
@@ -1050,6 +1074,10 @@ const EN = {
   '创建账号': 'Create account',
   '保存并连接': 'Save & connect',
   '连接 Supabase': 'Connect Supabase',
+  '本站还没连接数据库': 'This site is not connected yet',
+  '页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。': 'The page opened, but the database connection has not been built into this file yet — sign-in and sign-up are unavailable. Please contact the admin.',
+  '（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）': '(Admins: put Project URL and anon key into the two constants at the top of the file, then re-upload to GitHub Pages.)',
+  '我是管理员，就在这里填': 'I am the admin — enter it here',
   '只需填一次': 'once only',
   '在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：': 'In Supabase open Project Settings → API and paste the two values below:',
   '只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。': 'Kept in this browser only. Re-enter after switching device. For deployment, hard-code it in the file.',
@@ -1242,6 +1270,8 @@ const EN = {
   '登录账号': 'Account',
   '未登录': 'Not signed in',
   '重新填写连接配置': 'Re-enter connection',
+  '复制配置代码（贴进文件顶部）': 'Copy config code (paste at top of file)',
+  '你的连接配置只存在这台电脑的浏览器里。要让别人打开页面就能用，点上面的「复制配置代码」，粘贴到文件顶部两个常量处，再重新上传到 GitHub Pages。': 'Your connection lives only in this browser. To let others open the page directly, copy the config code and paste it into the two constants at the top of the file, then re-upload to GitHub Pages.',
   '打开 Supabase 后台': 'Open Supabase',
   '上线四步': 'Four steps',
   '数据库初始化 SQL': 'Database init SQL',
@@ -1257,6 +1287,7 @@ const EN = {
   /* 错误 */
   '邮箱或密码不正确': 'Wrong email or password',
   '邮箱还未验证，请先到邮箱点击确认链接': 'Email not verified — click the link we sent you',
+  '邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册': 'Email not verified. If the confirmation link opens localhost, ask the admin to confirm the account in Supabase (or turn off Confirm email and sign up again).',
   '该邮箱已注册，请直接登录': 'This email already has an account — sign in',
   'Supabase anon key 不正确，请检查配置': 'Invalid anon key',
   '请先在文件顶部填写 Supabase URL 与 anon key': 'Fill in the Supabase URL and anon key first',
@@ -1264,6 +1295,7 @@ const EN = {
   '没有权限执行该操作（被 RLS 策略拒绝）': 'Not allowed (blocked by RLS)',
   '登录状态已过期，请重新登录': 'Session expired — sign in again',
   '数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）': 'Database not initialized — run the setup SQL first',
+  '数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。': 'Database is not on the invite-code version yet — run fix-invite-v2.sql in Supabase SQL Editor, then reload.',
   '请确认已执行初始化 SQL，或联系超级管理员补建档案。': 'Run the setup SQL, or ask a super admin to create your profile.',
   '该邮箱未获得邀请，请联系公司管理员在「用户管理」中邀请你': 'This email has no invite — ask your company admin to invite it',
   '账号资料不存在': 'Profile missing',
@@ -1362,6 +1394,7 @@ function setLang(next) {
     buildShell();
     switchView(state.view);
   } else if (!$('#authScreen').hidden) {
+    renderAuthContact();
     if (isConfigured) showAuth();
   }
 }
@@ -1397,7 +1430,7 @@ const ICONS = {
 const SUPPORT = {
   name: 'Max Dee',
   role: '管理员',
-  phone: '+65 87171111',
+  phone: '+6587171111',
   phoneE164: '+6587171111',
   wa: '6587171111'
 };
@@ -1418,7 +1451,7 @@ const state = {
   orders: { rows: [], page: 0, size: 10, count: 0 },
   filters: { q: '', status: '', company: '', from: '', to: '' },
   users: [], invites: [], userQ: '', companyQ: '',
-  inviteCode: '', qrShown: {}
+  inviteCode: '', qrShown: {}, cfgAdminMode: false
 };
 
 /* ----------------------------------------------------------------------------
@@ -1489,7 +1522,7 @@ function errMsg(e) {
   const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || (lang === 'en' ? 'Unknown error' : '未知错误');
   const map = {
     'Invalid login credentials': '邮箱或密码不正确',
-    'Email not confirmed': '邮箱还未验证，请先到邮箱点击确认链接',
+    'Email not confirmed': '邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册',
     'User already registered': '该邮箱已注册，请直接登录',
     'Invalid API key': 'Supabase anon key 不正确，请检查配置',
     'supabaseKey is required': '请先在文件顶部填写 Supabase URL 与 anon key',
@@ -1502,6 +1535,9 @@ function errMsg(e) {
   const s = String(raw);
   if (s.indexOf('JWT') !== -1) return t('登录状态已过期，请重新登录');
   if (s.indexOf('duplicate key') !== -1) return lang === 'en' ? 'Duplicate: name or code already exists' : '数据重复：公司名称或编号已存在';
+  if (s.indexOf('schema cache') !== -1 || s.indexOf('check_invite_code') !== -1) {
+    return t('数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。');
+  }
   if (s.indexOf('42P01') !== -1 || (s.indexOf('does not exist') !== -1 && s.indexOf('function') !== -1)) {
     return t('数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）');
   }
@@ -1672,12 +1708,27 @@ function showAuth(opts) {
   $('#authScreen').hidden = false;
 
   const needConfig = !isConfigured;
+  /* file:// 打开 = 管理员本机调试；http(s) 打开 = 已部署，访客不该看到填密钥的输入框 */
+  const hosted = /^https?:$/.test(location.protocol);
   $('#cfgPanel').hidden = !needConfig;
   $('#authTabsWrap').hidden = needConfig;
   if (needConfig) {
     $('#authBanner').hidden = true;
     $('#cfgError').textContent = o.error || '';
-    setTimeout(function () { $('#cfgUrl').focus(); }, 90);
+    const showForm = !hosted || state.cfgAdminMode;
+    $('#cfgGuest').hidden = showForm;
+    $('#cfgForm').hidden = !showForm;
+
+    const gwa = $('#cfgGuestWa');
+    if (gwa) {
+      gwa.href = whatsappUrl(
+        lang === 'en'
+          ? 'Hi Max, the MaxAI Portal link shows “not configured”.'
+          : '你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。',
+        SUPPORT.wa
+      );
+    }
+    if (showForm) setTimeout(function () { $('#cfgUrl').focus(); }, 90);
     return;
   }
 
@@ -1838,10 +1889,16 @@ async function doRegister(event) {
       if (!inv.ok) throw new Error(t('邀请码无效或已被使用'));
     }
 
+    const signOpts = { data: { full_name: name, invite_code: code || '' } };
+    /* 确认邮件点回来时回到当前页面，而不是 Supabase 默认的 localhost */
+    if (/^https?:$/.test(location.protocol)) {
+      signOpts.emailRedirectTo = location.origin + location.pathname;
+    }
+
     const res = await sb.auth.signUp({
       email: email,
       password: pwd,
-      options: { data: { full_name: name, invite_code: code || '' } }
+      options: signOpts
     });
     if (res.error) throw res.error;
 
@@ -2613,10 +2670,11 @@ function renderUsers() {
   }
 }
 
-/* 邀请链接：带邀请码，扫码或点开后自动填入 */
+/* 邀请链接：带邀请码，扫码或点开后自动填入
+   参数用 ?invite= 而不是 ?code= —— ?code= 是 Supabase 邮箱确认回调的保留参数 */
 function inviteLink(code) {
   const base = location.href.split('?')[0].split('#')[0];
-  return base + '?code=' + encodeURIComponent(code);
+  return base + '?invite=' + encodeURIComponent(code);
 }
 
 /* 6 位无歧义邀请码（去掉 0/O/1/I），前缀 MX- */
@@ -2856,11 +2914,11 @@ function setupHtml() {
   const steps = lang === 'en'
     ? ['Create a project at supabase.com (Region: Singapore / Tokyo).',
        'SQL Editor → New query → paste the SQL below → Run (Ctrl+Enter).',
-       'Project Settings → API → copy Project URL and anon public, paste them on the login screen.',
+       'Project Settings → API → copy Project URL and anon public into the <b>two constants at the top of the file</b> (required when hosted on GitHub Pages, otherwise visitors see “not connected”).',
        'Sign up the first account — it becomes super admin automatically.']
     : ['在 supabase.com 新建项目，Region 建议选 Singapore / Tokyo。',
        '左侧 SQL Editor → New query → 粘贴下方 SQL → Run（Ctrl+Enter），只需一次。',
-       'Project Settings → API 复制 Project URL 与 anon public，粘到登录页的连接面板。',
+       'Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。',
        '注册第一个账号 —— 自动成为超级管理员。'];
 
   const notes = lang === 'en'
@@ -2893,8 +2951,14 @@ function setupHtml() {
           esc(state.me ? (state.me.email + ' · ' + t((ROLE[state.me.role] || {}).label || '')) : t('未登录')) + '</code></div>' +
         '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
           '<button class="btn sm" type="button" data-act="edit-cfg">' + esc(t('重新填写连接配置')) + '</button>' +
+          (isConfigured && savedCfg && savedCfg.url
+            ? '<button class="btn primary sm" type="button" data-act="copy-cfg-code">' + esc(t('复制配置代码（贴进文件顶部）')) + '</button>'
+            : '') +
           '<a class="btn sm" href="https://supabase.com/dashboard" target="_blank" rel="noopener">' + esc(t('打开 Supabase 后台')) + '</a>' +
         '</div>' +
+        (isConfigured && savedCfg && savedCfg.url
+          ? '<p class="hint" style="margin-top:10px">' + esc(t('你的连接配置只存在这台电脑的浏览器里。要让别人打开页面就能用，点上面的「复制配置代码」，粘贴到文件顶部两个常量处，再重新上传到 GitHub Pages。')) + '</p>'
+          : '') +
       '</div>' +
     '</div>' +
     '<div class="card">' +
@@ -2932,6 +2996,9 @@ function setupHtml() {
           '<li>' + (lang === 'en'
             ? '<b>Code not working?</b> Codes are single-use: once someone signs up with it the invite shows as used. Generate a new one.'
             : '<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。') + '</li>' +
+          '<li>' + (lang === 'en'
+            ? '<b>“Confirm email” link opens localhost:</b> that is Supabase’s default Site URL. Either turn off Authentication → Providers → Email → “Confirm email” (recommended for invited staff), or set Authentication → URL Configuration → Site URL to your page URL (e.g. https://maxd331992.github.io/) and add it to Redirect URLs.'
+            : '<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。') + '</li>' +
         '</ul>' +
       '</div>' +
     '</div>' +
@@ -3103,6 +3170,7 @@ function bindEvents() {
       case 'lang': setLang(el.dataset.lang); break;
       case 'guide': openModal(t('查看建表 SQL / 配置说明'), setupHtml(), 'lg'); break;
       case 'save-cfg': saveCfg(); break;
+      case 'cfg-admin': state.cfgAdminMode = true; showAuth(); break;
       case 'edit-cfg': editCfg(); break;
       case 'logout': doLogout(); break;
       case 'refresh': switchView(state.view); break;
@@ -3132,6 +3200,7 @@ function bindEvents() {
       }
       case 'del-company': deleteCompany(id); break;
       case 'copy-sql': copyText(SETUP_SQL, t('初始化 SQL 已复制')); break;
+      case 'copy-cfg-code': copyText('const SUPABASE_URL = ' + JSON.stringify(CFG_URL) + ';\nconst SUPABASE_ANON_KEY = ' + JSON.stringify(CFG_ANON) + ';', t('已复制到剪贴板')); break;
       case 'copy-support': copyText(SUPPORT.phone, t('已复制到剪贴板')); break;
       case 'copy-el': copyEl(el.dataset.target); break;
       default: break;
@@ -3184,9 +3253,12 @@ function bindEvents() {
 async function boot() {
   applyI18n();
 
-  /* 二维码/邀请链接带来的邀请码：?code=MX-XXXXXX */
-  const urlCode = new URLSearchParams(location.search).get('code');
-  if (urlCode) state.inviteCode = urlCode.trim().toUpperCase();
+  /* 邀请码：新的用 ?invite=，旧的二维码 ?code= 仍然兼容（只认 MX- 开头的，
+     避免把 Supabase 邮箱确认回调的 ?code= 当成邀请码） */
+  const params = new URLSearchParams(location.search);
+  const rawInvite = params.get('invite') || params.get('code') || '';
+  const cleanInvite = rawInvite.trim().toUpperCase();
+  if (/^MX-[A-Z0-9]{4,10}$/.test(cleanInvite)) state.inviteCode = cleanInvite;
 
   bindEvents();
   renderAuthContact();
