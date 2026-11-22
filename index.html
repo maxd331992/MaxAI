@@ -18,1031 +18,7 @@
   --line:rgba(255,255,255,.08);
   --line-2:rgba(255,255,255,.055);
   --ink:#e8eeff;
-  --ink-2:#b9c4dd;-- ============================================================================
--- MaxAI Portal · 多公司订单中台 —— Supabase 初始化脚本（v2 · 邀请码版）
--- 用法：Supabase 控制台 → SQL Editor → New query → 整段粘贴 → Run（可重复执行）
--- 可重复执行（表 / 函数 / 策略都做了 if not exists / drop if exists）
--- ============================================================================
-
-create extension if not exists pgcrypto;
-
--- ---------------------------------------------------------------------------
--- 1) 公司表
--- ---------------------------------------------------------------------------
-create table if not exists public.companies (
-  id          uuid primary key default gen_random_uuid(),
-  name        text not null unique,                              -- 公司名称
-  code        text unique,                                       -- 公司编号（选填）
-  contact     text,                                              -- 联系人
-  phone       text,                                              -- 联系电话
-  status      text not null default 'active'
-              check (status in ('active','disabled')),
-  currency    text not null default 'SGD'          -- 该公司默认货币：SGD 新币 / MYR 马币
-              check (currency in ('SGD','MYR')),
-  created_at  timestamptz not null default now()
-);
-
--- 老库升级：补 currency 字段（默认新币）
-alter table public.companies add column if not exists currency text not null default 'SGD';
-
--- ---------------------------------------------------------------------------
--- 2) 用户资料表：与 auth.users 一一对应，存放角色与归属公司
---    role: super_admin 超级管理员 / company_admin 公司管理员 / user 普通用户
--- ---------------------------------------------------------------------------
-create table if not exists public.profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  email       text,
-  full_name   text,
-  role        text not null default 'user'
-              check (role in ('super_admin','company_admin','user')),
-  company_id  uuid references public.companies(id) on delete set null,
-  status      text not null default 'active'
-              check (status in ('active','disabled')),
-  created_at  timestamptz not null default now()
-);
-create index if not exists profiles_company_idx on public.profiles(company_id);
-
--- ---------------------------------------------------------------------------
--- 3) 邀请表（v2：邀请码 + 二维码，不再依赖邮箱）
---    管理员生成 6 位邀请码 → 前端画成二维码 / 分享到 WhatsApp
---    对方注册时填邀请码，触发器自动写入角色与公司
--- ---------------------------------------------------------------------------
-create table if not exists public.invites (
-  id          uuid primary key default gen_random_uuid(),
-  code        text not null,
-  role        text not null default 'user'
-              check (role in ('company_admin','user')),
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  note        text,
-  email       text,
-  invited_by  uuid references public.profiles(id) on delete set null,
-  status      text not null default 'pending'
-              check (status in ('pending','accepted','revoked')),
-  used_by     uuid references auth.users(id) on delete set null,
-  created_at  timestamptz not null default now(),
-  accepted_at timestamptz
-);
-
--- v1（按邮箱邀请）→ v2（按邀请码）兼容迁移：老库直接跑这几行
-alter table public.invites add column if not exists code text;
-alter table public.invites add column if not exists note text;
-alter table public.invites add column if not exists used_by uuid references auth.users(id) on delete set null;
-alter table public.invites alter column email drop not null;
-update public.invites
-   set code = 'MX-' || upper(substr(md5(id::text || random()::text), 1, 6))
- where code is null;
-
-create unique index if not exists invites_code_key on public.invites (code);
-create index if not exists invites_company_idx on public.invites (company_id);
-
--- ---------------------------------------------------------------------------
--- 4) 订单表
---    company_id = 归属公司（数据隔离核心字段）
---    user_id    = 录入人
--- ---------------------------------------------------------------------------
-create table if not exists public.orders (
-  id             uuid primary key default gen_random_uuid(),
-  order_no       text not null default
-                 ('ORD-' || to_char(now(),'YYYYMMDD') || '-' ||
-                  upper(substr(md5(random()::text), 1, 6))),
-  company_id     uuid not null references public.companies(id) on delete cascade,
-  user_id        uuid not null references public.profiles(id) on delete cascade,
-  customer_name  text not null,                                  -- 客户姓名
-  customer_phone text,                                           -- 联系方式
-  product_name   text not null,                                  -- 商品名称
-  quantity       numeric not null default 1 check (quantity >= 0),
-  amount         numeric not null default 0 check (amount >= 0), -- 金额（货币由所属公司决定）
-  payment_status text not null default 'unpaid'                   -- 未付 / 部分付款 / 已付
-                 check (payment_status in ('unpaid','partial','paid')),
-  paid_amount    numeric not null default 0 check (paid_amount >= 0), -- 已付金额
-  due_at         date,                                           -- 付款截止日（判断逾期）
-  status         text not null default 'pending'
-                 check (status in ('pending','confirmed','shipped','completed','cancelled')),
-  ordered_at     timestamptz not null default now(),             -- 下单时间
-  remark         text,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
-);
-create index if not exists orders_company_idx on public.orders (company_id, ordered_at desc);
-create index if not exists orders_user_idx    on public.orders (user_id);
-create index if not exists orders_status_idx  on public.orders (status);
-
--- 货币只跟公司走：订单表不存货币（早前版本若加过，这里删掉）
-alter table public.orders drop column if exists currency;
-
--- 赊账：付款状态 / 已付金额 / 付款截止
-alter table public.orders add column if not exists payment_status text not null default 'unpaid';
-alter table public.orders add column if not exists paid_amount numeric not null default 0;
-alter table public.orders add column if not exists due_at date;
-
-do $$
-begin
-  alter table public.orders add constraint orders_payment_status_chk
-    check (payment_status in ('unpaid','partial','paid'));
-exception when duplicate_object then null;
-end $$;
-
-create index if not exists orders_pay_idx on public.orders (company_id, payment_status, due_at);
-drop index if exists public.orders_currency_idx;
-
--- ---------------------------------------------------------------------------
--- 5) 新用户注册时自动建档
---    · 库里还没有任何用户 → 第一个注册者自动成为超级管理员（完成初始化）
---    · 注册时带了有效邀请码 → 自动写入邀请里的角色和公司，并把邀请标记为已用
---    · 其他情况 → 普通用户（等待管理员分配公司）
--- ---------------------------------------------------------------------------
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_total   int;
-  v_invite  public.invites%rowtype;
-  v_code    text;
-  v_company uuid;
-  v_role    text := 'user';
-  v_cname   text;
-begin
-  select count(*) into v_total from public.profiles;
-
-  v_cname := nullif(trim(coalesce(new.raw_user_meta_data->>'company_name', '')), '');
-
-  if v_total = 0 then
-    -- 买家老板模式：第一个注册的人自动建一家公司，并成为该公司管理员
-    -- 平台超管不再自动产生，由站长手动指定（见文件末尾的说明）
-    insert into public.companies (name, currency)
-    values (coalesce(v_cname, '我的公司'), 'SGD')
-    returning id into v_company;
-
-    v_role := 'company_admin';
-  else
-    -- 之后注册：有有效邀请码才进公司；没有就是「无公司的普通成员」
-    v_code := upper(coalesce(new.raw_user_meta_data->>'invite_code', ''));
-
-    if v_code <> '' then
-      select * into v_invite
-        from public.invites
-       where code = v_code and status = 'pending'
-       limit 1;
-
-      if v_invite.id is not null then
-        v_company := v_invite.company_id;
-        v_role    := coalesce(nullif(v_invite.role, ''), 'user');
-
-        update public.invites
-           set status = 'accepted', used_by = new.id
-         where id = v_invite.id;
-      end if;
-    end if;
-  end if;
-
-  insert into public.profiles (id, email, full_name, role, company_id, status)
-  values (
-    new.id,
-    new.email,
-    coalesce(nullif(new.raw_user_meta_data->>'full_name', ''), split_part(new.email, '@', 1)),
-    v_role,
-    v_company,
-    'active'
-  )
-  on conflict (id) do nothing;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
--- ---------------------------------------------------------------------------
--- 6) updated_at 自动维护
--- ---------------------------------------------------------------------------
-create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
-begin
-  new.updated_at := now();
-  return new;
-end;
-$$;
-
-drop trigger if exists orders_touch on public.orders;
-create trigger orders_touch
-  before update on public.orders
-  for each row execute function public.touch_updated_at();
-
--- ---------------------------------------------------------------------------
--- 7) 权限判定函数（security definer：绕过 RLS 读取当前用户身份，避免策略递归）
--- ---------------------------------------------------------------------------
-create or replace function public.fn_role()
-returns text language sql stable security definer set search_path = public as $$
-  select role from public.profiles where id = auth.uid();
-$$;
-
-create or replace function public.fn_company_id()
-returns uuid language sql stable security definer set search_path = public as $$
-  select company_id from public.profiles where id = auth.uid();
-$$;
-
-create or replace function public.fn_is_super()
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'super_admin' and status = 'active'
-  );
-$$;
-
-create or replace function public.fn_is_company_admin()
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'company_admin' and status = 'active'
-  );
-$$;
-
--- 注册前校验邀请码（返回角色/公司，用于注册页提示；不泄露其他信息）
-create or replace function public.check_invite_code(p_code text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(
-    (select jsonb_build_object('ok', true, 'role', i.role,
-                               'company_id', i.company_id, 'company', c.name)
-       from public.invites i
-       join public.companies c on c.id = i.company_id
-      where upper(i.code) = upper(trim(coalesce(p_code, '')))
-        and i.status = 'pending'
-      limit 1),
-    jsonb_build_object('ok', false)
-  );
-$$;
-
--- 是否允许“首个管理员”注册（系统中还没有任何用户时为 true）
-create or replace function public.first_admin_available()
-returns boolean language sql stable security definer set search_path = public as $$
-  select not exists (select 1 from public.profiles);
-$$;
-
-drop function if exists public.check_invite(text);
-
-grant execute on function public.check_invite_code(text)  to anon, authenticated;
-grant execute on function public.first_admin_available() to anon, authenticated;
-
--- ---------------------------------------------------------------------------
--- 8) 仪表盘统计（security invoker：RLS 照常生效，不同角色只统计自己看得到的数据）
--- ---------------------------------------------------------------------------
-create or replace function public.dashboard_stats(p_days int default 7, p_tz text default 'Asia/Singapore')
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = public
-as $$
-  with params as (
-    select least(greatest(coalesce(p_days, 7), 1), 90) as days,
-           coalesce(nullif(trim(p_tz), ''), 'Asia/Singapore') as tz
-  ),
-  tzd as (
-    select days, tz, (now() at time zone tz)::date as d_today
-    from params
-  ),
-  bounds as (
-    select days, tz, d_today,
-           date_trunc('month', d_today::timestamp)::date as month_start,
-           (d_today - (days - 1))                        as first_day
-    from tzd
-  ),
-  loc as (
-    select o.*,
-           coalesce(c.currency, 'SGD') as cur,
-           (o.ordered_at at time zone (select tz from params))::date as local_day
-    from public.orders o
-    left join public.companies c on c.id = o.company_id
-  ),
-  agg as (
-    select count(*)::int                                            as total,
-           (count(*) filter (where l.status = 'pending'))::int      as pending,
-           (count(*) filter (where l.status = 'confirmed'))::int    as confirmed,
-           (count(*) filter (where l.status = 'shipped'))::int      as shipped,
-           (count(*) filter (where l.status = 'completed'))::int    as completed,
-           (count(*) filter (where l.status = 'cancelled'))::int    as cancelled,
-           (count(*) filter (where l.local_day >= b.month_start))::int as month_count
-    from loc l cross join bounds b
-  ),
-  -- 金额按货币分开统计（新币 / 马币不能相加）
-  by_cur as (
-    select l.cur                                                      as currency,
-           count(*)::int                                              as total,
-           coalesce(sum(l.amount), 0)::numeric                        as amount,
-           coalesce(sum(l.amount) filter (where l.local_day >= b.month_start), 0)::numeric as month_amount,
-           (count(*) filter (where l.local_day >= b.month_start))::int as month_count
-    from loc l cross join bounds b
-    group by l.cur
-  ),
-  days as (
-    select g::date as d
-    from bounds b,
-         generate_series(b.first_day::timestamp, b.d_today::timestamp, interval '1 day') g
-  ),
-  daily as (
-    select days.d as day,
-           l.cur                                  as currency,
-           count(l.id)::int                       as cnt,
-           coalesce(sum(l.amount), 0)::numeric    as amount
-    from days
-    left join loc l on l.local_day = days.d
-    group by days.d, l.cur
-    order by days.d
-  )
-  select jsonb_build_object(
-    'agg',    (select to_jsonb(agg) from agg),
-    'by_cur', (select coalesce(
-                 jsonb_agg(jsonb_build_object(
-                   'currency', currency, 'total', total,
-                   'amount', amount, 'month_amount', month_amount, 'month_count', month_count
-                 ) order by currency),
-                 '[]'::jsonb)
-               from by_cur),
-    'daily',  (select coalesce(
-                jsonb_agg(jsonb_build_object('day', day, 'currency', currency, 'count', cnt, 'amount', amount) order by day),
-                '[]'::jsonb)
-              from daily)
-  );
-$$;
-
-grant execute on function public.dashboard_stats(int, text) to authenticated;
-
--- ---------------------------------------------------------------------------
--- 9) 开启行级安全（RLS）
--- ---------------------------------------------------------------------------
-alter table public.companies enable row level security;
-alter table public.profiles  enable row level security;
-alter table public.invites   enable row level security;
-alter table public.orders    enable row level security;
-
--- 基础表权限（真正的过滤由下面的 RLS 策略完成）
-grant select, insert, update, delete
-  on public.companies, public.profiles, public.invites, public.orders
-  to authenticated;
-
--- --------------------------- 公司 companies --------------------------------
-drop policy if exists companies_select on public.companies;
-create policy companies_select on public.companies
-  for select to authenticated
-  using ( public.fn_is_super() or id = public.fn_company_id() );
-
-drop policy if exists companies_write on public.companies;
-create policy companies_write on public.companies
-  for all to authenticated
-  using ( public.fn_is_super() )
-  with check ( public.fn_is_super() );
-
--- --------------------------- 用户 profiles --------------------------------
--- 本人可读；超管可读全部；公司管理员可读本公司成员
-drop policy if exists profiles_select on public.profiles;
-create policy profiles_select on public.profiles
-  for select to authenticated
-  using (
-    id = auth.uid()
-    or public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  );
-
--- 超管可改全部；公司管理员只能改本公司成员，且不能碰超级管理员
-drop policy if exists profiles_update on public.profiles;
-create policy profiles_update on public.profiles
-  for update to authenticated
-  using (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin()
-         and company_id = public.fn_company_id()
-         and role <> 'super_admin' )
-  )
-  with check (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin()
-         and company_id = public.fn_company_id()
-         and role <> 'super_admin' )
-  );
-
-drop policy if exists profiles_delete on public.profiles;
-create policy profiles_delete on public.profiles
-  for delete to authenticated
-  using ( public.fn_is_super() );
-
--- --------------------------- 邀请 invites --------------------------------
-drop policy if exists invites_select on public.invites;
-create policy invites_select on public.invites
-  for select to authenticated
-  using ( public.fn_is_super()
-          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
-
-drop policy if exists invites_insert on public.invites;
-create policy invites_insert on public.invites
-  for insert to authenticated
-  with check (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin()
-         and company_id = public.fn_company_id()
-         and role <> 'super_admin' )
-  );
-
-drop policy if exists invites_update on public.invites;
-create policy invites_update on public.invites
-  for update to authenticated
-  using ( public.fn_is_super()
-          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) )
-  with check ( public.fn_is_super()
-          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
-
-drop policy if exists invites_delete on public.invites;
-create policy invites_delete on public.invites
-  for delete to authenticated
-  using ( public.fn_is_super()
-          or ( public.fn_is_company_admin() and company_id = public.fn_company_id() ) );
-
--- --------------------------- 订单 orders --------------------------------
--- 平台方（super_admin）不参与任何公司的订单：看不了、改不了、也删不了。
--- 订单只在「同一家公司内部」流转：公司管理员管全公司，普通用户只看/录自己的。
-drop policy if exists orders_select on public.orders;
-create policy orders_select on public.orders
-  for select to authenticated
-  using (
-    ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-    or ( company_id = public.fn_company_id() and user_id = auth.uid() )
-  );
-
--- 录入：只能录自己公司的单；普通用户只能录自己的单
-drop policy if exists orders_insert on public.orders;
-create policy orders_insert on public.orders
-  for insert to authenticated
-  with check (
-    company_id = public.fn_company_id()
-    and ( public.fn_is_company_admin() or user_id = auth.uid() )
-  );
-
--- 修改：本公司管理员（普通用户只能查看和录入）
-drop policy if exists orders_update on public.orders;
-create policy orders_update on public.orders
-  for update to authenticated
-  using ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  with check ( public.fn_is_company_admin() and company_id = public.fn_company_id() );
-
-drop policy if exists orders_delete on public.orders;
-create policy orders_delete on public.orders
-  for delete to authenticated
-  using ( public.fn_is_company_admin() and company_id = public.fn_company_id() );
-
--- ---------------------------------------------------------------------------
--- 10) 收尾：把控制台手动创建的历史账号补一份档案（可选）
--- ---------------------------------------------------------------------------
-insert into public.profiles (id, email, full_name)
-select u.id, u.email,
-       coalesce(nullif(u.raw_user_meta_data->>'full_name',''), split_part(u.email,'@',1))
-from auth.users u
-on conflict (id) do nothing;
-
--- 如需手动指定超级管理员（把邮箱换成你的账号）：
--- update public.profiles set role = 'super_admin' where email = 'you@example.com';
-
--- ============================================================================
--- 初始化完成 ✅  接下来：登录系统 → 公司管理 → 新建公司 → 用户管理 → 邀请用户
--- ============================================================================
-
--- 让 PostgREST 立刻识别新建的函数（否则前端可能报 function ... in the schema cache）
-notify pgrst, 'reload schema';
-
--- ---------------------------------------------------------------------------
--- 11) 操作记录（审计日志）
---     由数据库触发器自动写入：谁、什么时候、改了什么，前端无法伪造也无法删除
---     读取受 RLS 限制：公司管理员只看本公司；平台方只看平台级（建公司等）
--- ---------------------------------------------------------------------------
-create table if not exists public.audit_logs (
-  id          bigserial primary key,
-  company_id  uuid references public.companies(id) on delete set null,
-  actor_id    uuid references public.profiles(id) on delete set null,
-  entity      text not null,                 -- orders / profiles / companies / invites
-  entity_id   text,
-  action      text not null,                 -- orders.insert / orders.update / orders.delete ...
-  old_row     jsonb,
-  new_row     jsonb,
-  created_at  timestamptz not null default now()
-);
-create index if not exists audit_company_idx on public.audit_logs (company_id, created_at desc);
-create index if not exists audit_created_idx on public.audit_logs (created_at desc);
-
-create or replace function public.audit_row()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_new jsonb;
-  v_old jsonb;
-  v_company uuid;
-  v_id text;
-begin
-  if TG_OP = 'DELETE' then
-    v_old := to_jsonb(OLD);
-  elsif TG_OP = 'INSERT' then
-    v_new := to_jsonb(NEW);
-  else
-    v_old := to_jsonb(OLD);
-    v_new := to_jsonb(NEW);
-  end if;
-
-  if TG_TABLE_NAME = 'companies' then
-    v_company := coalesce((v_new->>'id')::uuid, (v_old->>'id')::uuid);
-  else
-    v_company := coalesce(nullif(v_new->>'company_id','')::uuid,
-                          nullif(v_old->>'company_id','')::uuid);
-  end if;
-
-  v_id := coalesce(v_new->>'id', v_old->>'id');
-
-  insert into public.audit_logs (company_id, actor_id, entity, entity_id, action, old_row, new_row)
-  values (v_company, auth.uid(), TG_TABLE_NAME, v_id,
-          TG_TABLE_NAME || '.' || lower(TG_OP), v_old, v_new);
-
-  return null;   -- AFTER 触发器，返回值无意义
-end;
-$$;
-
-drop trigger if exists audit_orders on public.orders;
-create trigger audit_orders after insert or update or delete on public.orders
-  for each row execute function public.audit_row();
-
-drop trigger if exists audit_profiles on public.profiles;
-create trigger audit_profiles after insert or update or delete on public.profiles
-  for each row execute function public.audit_row();
-
-drop trigger if exists audit_companies on public.companies;
-create trigger audit_companies after insert or update or delete on public.companies
-  for each row execute function public.audit_row();
-
-drop trigger if exists audit_invites on public.invites;
-create trigger audit_invites after insert or update or delete on public.invites
-  for each row execute function public.audit_row();
-drop trigger if exists audit_products on public.products;
-create trigger audit_products after insert or update or delete on public.products
-  for each row execute function public.audit_row();
-
-drop trigger if exists audit_stock_moves on public.stock_moves;
-create trigger audit_stock_moves after insert or update or delete on public.stock_moves
-  for each row execute function public.audit_row();
-
-alter table public.audit_logs enable row level security;
-
-drop policy if exists audit_select on public.audit_logs;
-create policy audit_select on public.audit_logs
-  for select to authenticated
-  using (
-    ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-    or ( public.fn_is_super() and (company_id is null or entity = 'companies') )
-  );
-
--- 只允许读，日志只能由触发器写入（前端无法伪造、无法删除）
-grant select on public.audit_logs to authenticated;
-grant usage, select on sequence public.audit_logs_id_seq to authenticated;
-
--- 让 PostgREST 立刻认识新表 / 新函数
-notify pgrst, 'reload schema';
--- ---------------------------------------------------------------------------
--- 12) 商品目录 + 订单明细
---     products     卖家上架的商品（图、价、单位、库存、上下架）
---     order_items  一笔订单包含的多个商品明细
---     图片存 Supabase Storage 的 product-images 桶（公开读，本公司管理员可写）
--- ---------------------------------------------------------------------------
-create table if not exists public.products (
-  id          uuid primary key default gen_random_uuid(),
-  company_id  uuid not null references public.companies(id) on delete cascade,
-  name        text not null,
-  description text,
-  price       numeric not null default 0 check (price >= 0),
-  unit        text,                                              -- kg / 箱 / 包
-  image_url   text,
-  category    text,
-  stock       numeric check (stock is null or stock >= 0),        -- 空 = 不限库存
-  is_active   boolean not null default true,                      -- 是否上架
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-create index if not exists products_company_idx on public.products (company_id, is_active);
-
-create table if not exists public.order_items (
-  id           uuid primary key default gen_random_uuid(),
-  order_id     uuid not null references public.orders(id) on delete cascade,
-  product_id   uuid references public.products(id) on delete set null,
-  product_name text not null,                                     -- 下单时的名称快照
-  price        numeric not null default 0 check (price >= 0),      -- 下单时的单价快照
-  quantity     numeric not null default 1 check (quantity > 0),
-  amount       numeric not null default 0 check (amount >= 0),
-  created_at   timestamptz not null default now()
-);
-create index if not exists order_items_order_idx on public.order_items (order_id);
-
--- 老库升级
-alter table public.products add column if not exists category text;
-alter table public.products add column if not exists stock numeric;
-alter table public.products add column if not exists unit text;
-
--- updated_at 自动维护
-create or replace function public.products_touch()
-returns trigger language plpgsql as $$
-begin new.updated_at = now(); return new; end;
-$$;
-drop trigger if exists products_touch on public.products;
-create trigger products_touch before update on public.products
-  for each row execute function public.products_touch();
-
--- --------------------------- RLS：商品 ---------------------------------
-alter table public.products enable row level security;
-
-drop policy if exists products_select on public.products;
-create policy products_select on public.products
-  for select to authenticated
-  using (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-    or ( company_id = public.fn_company_id() and is_active )        -- 客户只看上架的
-  );
-
-drop policy if exists products_insert on public.products;
-create policy products_insert on public.products
-  for insert to authenticated
-  with check (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  );
-
-drop policy if exists products_update on public.products;
-create policy products_update on public.products
-  for update to authenticated
-  using (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  )
-  with check (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  );
-
-drop policy if exists products_delete on public.products;
-create policy products_delete on public.products
-  for delete to authenticated
-  using (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  );
-
--- --------------------------- RLS：订单明细 ------------------------------
-alter table public.order_items enable row level security;
-
-drop policy if exists order_items_select on public.order_items;
-create policy order_items_select on public.order_items
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.orders o
-      where o.id = order_id
-        and (
-          ( public.fn_is_company_admin() and o.company_id = public.fn_company_id() )
-          or ( o.company_id = public.fn_company_id() and o.user_id = auth.uid() )
-        )
-    )
-  );
-
-drop policy if exists order_items_insert on public.order_items;
-create policy order_items_insert on public.order_items
-  for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.orders o
-      where o.id = order_id
-        and ( o.user_id = auth.uid() or public.fn_is_company_admin() )
-    )
-  );
-
-drop policy if exists order_items_update on public.order_items;
-create policy order_items_update on public.order_items
-  for update to authenticated
-  using ( public.fn_is_company_admin() and exists (select 1 from public.orders o where o.id = order_id) )
-  with check ( public.fn_is_company_admin() and exists (select 1 from public.orders o where o.id = order_id) );
-
-drop policy if exists order_items_delete on public.order_items;
-create policy order_items_delete on public.order_items
-  for delete to authenticated
-  using ( public.fn_is_company_admin() and exists (select 1 from public.orders o where o.id = order_id) );
-
--- --------------------------- 图片存储桶 ---------------------------------
-insert into storage.buckets (id, name, public)
-values ('product-images', 'product-images', true)
-on conflict (id) do update set public = true;
-
-drop policy if exists "product images read" on storage.objects;
-create policy "product images read" on storage.objects
-  for select using (bucket_id = 'product-images');
-
-drop policy if exists "product images insert" on storage.objects;
-create policy "product images insert" on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'product-images'
-    and public.fn_is_company_admin()
-    and (storage.foldername(name))[1] = public.fn_company_id()::text
-  );
-
-drop policy if exists "product images update" on storage.objects;
-create policy "product images update" on storage.objects
-  for update to authenticated
-  using (
-    bucket_id = 'product-images'
-    and public.fn_is_company_admin()
-    and (storage.foldername(name))[1] = public.fn_company_id()::text
-  );
-
-drop policy if exists "product images delete" on storage.objects;
-create policy "product images delete" on storage.objects
-  for delete to authenticated
-  using (
-    bucket_id = 'product-images'
-    and public.fn_is_company_admin()
-    and (storage.foldername(name))[1] = public.fn_company_id()::text
-  );
-
--- 让 PostgREST 立刻认识新表
-notify pgrst, 'reload schema';
--- ---------------------------------------------------------------------------
--- 13) 库存自动扣减 + 取消回补
---     下单（写 order_items）→ 扣库存；删明细 → 回补；订单取消 → 整单回补
---     库存为空的商品（不限库存）不参与计算
--- ---------------------------------------------------------------------------
-create or replace function public.stock_apply_item()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if TG_OP = 'INSERT' then
-    update public.products
-       set stock = greatest(0, stock - NEW.quantity)
-     where id = NEW.product_id and stock is not null;
-    return null;
-  elsif TG_OP = 'DELETE' then
-    update public.products
-       set stock = stock + OLD.quantity
-     where id = OLD.product_id and stock is not null;
-    return null;
-  else
-    if NEW.product_id is not null then
-      update public.products
-         set stock = greatest(0, stock + OLD.quantity - NEW.quantity)
-       where id = NEW.product_id and stock is not null;
-    end if;
-    return null;
-  end if;
-end;
-$$;
-
-drop trigger if exists stock_items on public.order_items;
-create trigger stock_items
-  after insert or update or delete on public.order_items
-  for each row execute function public.stock_apply_item();
-
-/* 订单取消 → 库存回补；取消后又恢复 → 重新扣回 */
-create or replace function public.stock_order_status()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if OLD.status is distinct from 'cancelled' and NEW.status = 'cancelled' then
-    update public.products p
-       set stock = p.stock + s.qty
-      from (select product_id, sum(quantity) as qty
-              from public.order_items where order_id = NEW.id group by product_id) s
-     where p.id = s.product_id and p.stock is not null;
-  elsif OLD.status = 'cancelled' and NEW.status is distinct from 'cancelled' then
-    update public.products p
-       set stock = greatest(0, p.stock - s.qty)
-      from (select product_id, sum(quantity) as qty
-              from public.order_items where order_id = NEW.id group by product_id) s
-     where p.id = s.product_id and p.stock is not null;
-  end if;
-  return null;
-end;
-$$;
-
-drop trigger if exists stock_order_status on public.orders;
-create trigger stock_order_status
-  after update of status on public.orders
-  for each row execute function public.stock_order_status();
-
-notify pgrst, 'reload schema';
--- ---------------------------------------------------------------------------
--- 14) 库存流水（让库存变成可以追溯的账，而不是一个会漂的数字）
---     products.stock   = 可售（前台能卖多少）
---     stock_moves      = 每一次变化都留一条：谁、什么时候、为什么、变了多少
---     在途 / 已售 由订单实时算，不存字段（避免两套账对不上）
--- ---------------------------------------------------------------------------
-create table if not exists public.stock_moves (
-  id          bigserial primary key,
-  company_id  uuid references public.companies(id) on delete cascade,
-  product_id  uuid references public.products(id) on delete set null,
-  product_name text,                               -- 商品删了也看得懂历史
-  delta       numeric not null,                    -- 正=入库/回补，负=出库
-  reason      text not null default 'manual',      -- order / cancel / manual / restock
-  order_id    uuid,
-  note        text,
-  actor_id    uuid references public.profiles(id) on delete set null,
-  created_at  timestamptz not null default now()
-);
-create index if not exists stock_moves_product_idx on public.stock_moves (product_id, created_at desc);
-create index if not exists stock_moves_company_idx on public.stock_moves (company_id, created_at desc);
-
-alter table public.stock_moves enable row level security;
-
-drop policy if exists stock_moves_select on public.stock_moves;
-create policy stock_moves_select on public.stock_moves
-  for select to authenticated
-  using (
-    public.fn_is_super()
-    or ( public.fn_is_company_admin() and company_id = public.fn_company_id() )
-  );
-
-grant select on public.stock_moves to authenticated;
-grant usage, select on sequence public.stock_moves_id_seq to authenticated;
-
--- 下单 / 删明细 / 改数量：改库存 + 记流水（替换第 13 段的旧函数）
-create or replace function public.stock_apply_item()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_delta numeric;
-  v_company uuid;
-  v_name text;
-  v_pid uuid;
-  v_order uuid;
-  v_reason text;
-begin
-  if TG_OP = 'INSERT' then
-    v_pid := NEW.product_id; v_delta := -NEW.quantity; v_order := NEW.order_id; v_reason := 'order';
-  elsif TG_OP = 'DELETE' then
-    v_pid := OLD.product_id; v_delta := OLD.quantity; v_order := OLD.order_id; v_reason := 'cancel';
-  else
-    v_pid := NEW.product_id;
-    v_delta := OLD.quantity - NEW.quantity;
-    v_order := NEW.order_id; v_reason := 'order';
-  end if;
-
-  if v_pid is null or v_delta = 0 then return null; end if;
-
-  select company_id, name into v_company, v_name from public.products where id = v_pid;
-
-  update public.products
-     set stock = greatest(0, stock + v_delta)
-   where id = v_pid and stock is not null;
-
-  if found then
-    insert into public.stock_moves (company_id, product_id, product_name, delta, reason, order_id, actor_id)
-    values (v_company, v_pid, v_name, v_delta, v_reason, v_order, auth.uid());
-  end if;
-  return null;
-end;
-$$;
-
-drop trigger if exists stock_items on public.order_items;
-create trigger stock_items
-  after insert or update or delete on public.order_items
-  for each row execute function public.stock_apply_item();
-
--- 订单取消 / 恢复：改库存 + 记流水（一次一条汇总）
-create or replace function public.stock_order_status()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_dir numeric;
-begin
-  if OLD.status is distinct from 'cancelled' and NEW.status = 'cancelled' then
-    v_dir := 1;
-  elsif OLD.status = 'cancelled' and NEW.status is distinct from 'cancelled' then
-    v_dir := -1;
-  else
-    return null;
-  end if;
-
-  update public.products p
-     set stock = greatest(0, p.stock + v_dir * s.qty)
-    from (select product_id, sum(quantity) as qty from public.order_items
-           where order_id = NEW.id group by product_id) s
-   where p.id = s.product_id and p.stock is not null;
-
-  insert into public.stock_moves (company_id, product_id, product_name, delta, reason, order_id, actor_id)
-  select NEW.company_id, s.product_id, max(p.name), v_dir * s.qty,
-         case when v_dir > 0 then 'cancel' else 'order' end,
-         NEW.id, auth.uid()
-    from (select product_id, sum(quantity) as qty from public.order_items
-           where order_id = NEW.id group by product_id) s
-    join public.products p on p.id = s.product_id
-   group by s.product_id, s.qty;
-
-  return null;
-end;
-$$;
-
-drop trigger if exists stock_order_status on public.orders;
-create trigger stock_order_status
-  after update of status on public.orders
-  for each row execute function public.stock_order_status();
-
--- 手动调库存：直接把可售改成某个数，差额记一条 manual 流水
-create or replace function public.adjust_stock(p_product uuid, p_new_qty numeric, p_note text default null)
-returns numeric
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_company uuid;
-  v_cur numeric;
-  v_name text;
-  v_delta numeric;
-begin
-  select company_id, coalesce(stock, 0), name into v_company, v_cur, v_name
-    from public.products where id = p_product;
-  if v_company is null then raise exception 'product not found'; end if;
-
-  if not ( public.fn_is_super() or (public.fn_is_company_admin() and v_company = public.fn_company_id()) ) then
-    raise exception 'no permission';
-  end if;
-
-  v_delta := coalesce(p_new_qty, 0) - v_cur;
-
-  update public.products
-     set stock = greatest(0, coalesce(p_new_qty, 0)), updated_at = now()
-   where id = p_product;
-
-  insert into public.stock_moves (company_id, product_id, product_name, delta, reason, note, actor_id)
-  values (v_company, p_product, v_name, v_delta, 'manual', p_note, auth.uid());
-
-  return v_delta;
-end;
-$$;
-
-grant execute on function public.adjust_stock(uuid, numeric, text) to authenticated;
-
--- 商品的 在途 / 已售 / 累计入库（RLS 生效，只看得到自己公司的）
-create or replace function public.product_stock_stats()
-returns table(product_id uuid, in_transit numeric, sold numeric, total_in numeric)
-language sql
-stable
-security invoker
-set search_path = public
-as $$
-  select p.id as product_id,
-    coalesce((select sum(oi.quantity) from public.order_items oi
-               join public.orders o on o.id = oi.order_id
-              where oi.product_id = p.id
-                and o.status in ('pending','confirmed','shipped')), 0)::numeric as in_transit,
-    coalesce((select sum(oi.quantity) from public.order_items oi
-               join public.orders o on o.id = oi.order_id
-              where oi.product_id = p.id and o.status = 'completed'), 0)::numeric as sold,
-    coalesce((select sum(sm.delta) from public.stock_moves sm
-              where sm.product_id = p.id and sm.delta > 0), 0)::numeric as total_in
-  from public.products p;
-$$;
-
-grant execute on function public.product_stock_stats() to authenticated;
-
-notify pgrst, 'reload schema';
-
--- ---------------------------------------------------------------------------
--- 买家老板模式说明
---   · 库里没有用户时，第一个注册的人 → 自动建公司（注册页填的公司名，空则「我的公司」）
---     + 成为该公司的 company_admin，能看本公司全部订单
---   · 平台超管不再自动产生。要指定站长，执行（把邮箱换成你的）：
---       update public.profiles p set role = 'super_admin', company_id = null
---        from auth.users u where u.id = p.id and u.email = 'you@example.com';
---   · 第一个用户之后：不带有效邀请码注册 → 普通 user、无公司，看不到任何数据
---   · first_admin_available() 保留但前端不再用它做门槛（注册改为邀请码可选）
--- ---------------------------------------------------------------------------
-notify pgrst, 'reload schema';
-
+  --ink-2:#b9c4dd;
   --muted:#7986a5;
   --brand:#22d3ee;
   --brand-2:#8b5cf6;
@@ -1259,6 +235,7 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .auth-form .btn.block{height:43px;margin-top:2px}
 .auth-foot{margin-top:18px;text-align:center;font-size:12.5px}
 .auth-foot .link{font-size:12.5px;color:var(--muted)}
+.build-stamp{font-size:10.5px;color:#3d4762;margin-top:10px;letter-spacing:.02em;font-family:var(--mono)}
 .auth-foot .link:hover{color:var(--brand)}
 .brand-tag{font-size:12px;color:#8b96b3;margin-top:6px;letter-spacing:.01em}
 
@@ -1772,6 +749,8 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
 .stepper button:active{transform:scale(.93)}
 .stepper button:disabled{opacity:.35;cursor:not-allowed}
 .stepper em{min-width:20px;text-align:center;font-size:13px;font-weight:700;font-style:normal;color:#fff}
+.qty-in{width:52px;text-align:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;color:#fff;padding:4px 2px;-moz-appearance:textfield}
+.qty-in::-webkit-outer-spin-button,.qty-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .p-oos{font-size:10.5px;color:#fda4af}
 .low-stock{color:#fda4af;font-weight:800}
 .stock-in{color:#6ee7b7;font-weight:700}
@@ -1883,7 +862,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
       <form class="auth-form" id="registerForm" hidden="" novalidate="">
         <div class="auth-banner" id="inviteBanner" hidden=""></div>
         <label class="field" id="inviteField"><span data-i18n="邀请码">邀请码</span>
-          <input class="input" name="invite_code" id="inviteCode" maxlength="24" autocomplete="off" spellcheck="false" required="" placeholder="MX-XXXXXX" style="font-family: var(--mono); letter-spacing: 0.14em; text-transform: uppercase;">
+          <input class="input" name="invite_code" id="inviteCode" maxlength="24" autocomplete="off" spellcheck="false" placeholder="MX-XXXXXX" style="font-family: var(--mono); letter-spacing: 0.14em; text-transform: uppercase;">
           <span class="field-note">
             <span data-i18n="没有邀请码？">没有邀请码？</span>
             <a class="link" id="noCodeWa" target="_blank" rel="noopener" data-i18n="WhatsApp 联系管理员" href="https://wa.me/6587171111?text=%E4%BD%A0%E5%A5%BD%20Max%EF%BC%8C%E6%88%91%E9%9C%80%E8%A6%81%E4%B8%80%E4%B8%AA%20MaxAI%20Portal%20%E7%9A%84%E9%82%80%E8%AF%B7%E7%A0%81%E3%80%82">WhatsApp 联系管理员</a>
@@ -1891,6 +870,10 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
         </label>
         <label class="field"><span data-i18n="姓名">姓名</span>
           <input class="input" name="full_name" type="text" autocomplete="name" data-i18n-ph="你的姓名" placeholder="你的姓名" maxlength="30" required="" style="">
+        </label>
+        <label class="field"><span data-i18n="公司名">公司名</span>
+          <input class="input" name="company_name" type="text" maxlength="40" data-i18n-ph="你的公司名（可留空）" placeholder="你的公司名（可留空）">
+          <span class="field-note" data-i18n="第一个注册的人会用这个名称建公司，之后注册可以留空">第一个注册的人会用这个名称建公司，之后注册可以留空</span>
         </label>
         <label class="field"><span data-i18n="邮箱">邮箱</span>
           <input class="input" name="email" type="email" autocomplete="username" data-i18n-ph="你的邮箱" placeholder="你的邮箱" required="" style="">
@@ -1914,7 +897,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
         </label>
         <div class="form-error" id="registerError"></div>
         <button class="btn primary block" type="submit" id="registerBtn" data-i18n="创建账号">创建账号</button>
-        <p class="hint" id="registerHint" data-i18n="注册需要邀请码，请向管理员索取。">注册需要邀请码，请向管理员索取。</p>
+        <p class="hint" id="registerHint" data-i18n="第一个注册的账号自动成为公司管理员；之后注册需要邀请码，没邀请码只能当普通成员（看不到数据）。">注册需要邀请码，请向管理员索取。</p>
       </form>
     </div>
 
@@ -1927,6 +910,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
         <button class="link" type="button" data-act="legal" data-legal="privacy" data-i18n="隐私政策">隐私政策</button>
       </div>
 
+      <div class="build-stamp" id="buildStamp"></div>
       <div style="margin-top:12px">
         <div class="lang-switch" data-lang-switch="">
           <button type="button" data-act="lang" data-lang="zh" class="on">中文</button>
@@ -1962,7 +946,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
       <span class="logo sm" aria-hidden="true"></span>
       <div class="brand-text">
         <div class="brand-name">MaxAI <span class="accent">Portal</span></div>
-        <div class="brand-sub" id="sideCompany">Alpha Pte Ltd</div>
+        <div class="brand-sub" id="sideCompany"></div>
       </div>
     </div>
 
@@ -1972,10 +956,11 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
       <div class="user-chip">
         <div class="avatar" id="avatar">J</div>
         <div class="user-meta">
-          <div class="user-name" id="userName">Jane Chua</div>
+          <div class="user-name" id="userName"></div>
           <div class="user-role" id="userRole">公司管理员</div>
         </div>
       </div>
+      <button class="btn dark-ghost block sm" style="margin-bottom:8px" data-act="change-pw" data-i18n="修改密码">修改密码</button>
       <button class="btn dark-ghost block sm" data-act="logout" data-i18n="退出登录">退出登录</button>
     </div>
   </aside>
@@ -2002,7 +987,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
       <!-- ---------- 仪表盘 ---------- -->
       <section class="view active" id="view-dashboard">
         <div class="card" id="onboardCard" hidden><div class="card-head" style="border-bottom:0;padding-bottom:0"><h3>三步开始用</h3><div class="head-actions"><span class="badge blue">0 / 3</span><button class="btn ghost sm" type="button" data-act="onboard-close">不再提示</button></div></div><div class="onboard"><div class="onboard-sub">跟着走完这三步，你的团队就能正常接单了</div><div class="onboard-progress"><i style="width:0%"></i></div><div class="onboard-step now"><div class="n">1</div><div class="t"><div class="st">邀请第一个客服</div><div class="sd">用户管理 → 邀请客服，发二维码或邀请码给他</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="users" data-sub="invite">去完成</button></div><div class="onboard-step "><div class="n">2</div><div class="t"><div class="st">下第一笔订单</div><div class="sd">订单管理 → 新建订单，金额会自动带公司货币</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders" data-sub="new-order">去完成</button></div><div class="onboard-step "><div class="n">3</div><div class="t"><div class="st">把订单标记为已发货</div><div class="sd">熟悉一下状态流转：待处理 → 已确认 → 已发货</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders">去完成</button></div></div></div>
-        <div class="hello" id="helloCard"><div class="hello-main"><div class="hello-kicker">凌晨好，Jane Chua</div><div class="hello-sub">公司管理员 · Alpha Pte Ltd · 11月22日星期日</div></div><div class="hello-actions"><button class="btn light" type="button" data-act="new-order">+ 新建订单</button><button class="btn light" type="button" data-act="invite">+ 邀请客服</button></div></div>
+        <div class="hello" id="helloCard"><div class="hello-main"><div class="hello-kicker">凌晨好，</div><div class="hello-sub">公司管理员 ·  · 11月22日星期日</div></div><div class="hello-actions"><button class="btn light" type="button" data-act="new-order">+ 新建订单</button><button class="btn light" type="button" data-act="invite">+ 邀请客服</button></div></div>
         <div class="stat-grid" id="statGrid"><div class="stat "><div class="stat-label">订单总数</div><div class="stat-value">0</div><div class="stat-foot">累计 S$0</div></div><div class="stat info"><div class="stat-label">本月订单</div><div class="stat-value">0</div><div class="stat-foot">本月新增</div></div><div class="stat warn"><div class="stat-label">待处理</div><div class="stat-value">0</div><div class="stat-foot">需要跟进</div></div><div class="stat ok"><div class="stat-label">本月金额</div><div class="stat-value">S$0.00</div><div class="stat-foot">本月成交</div></div></div>
         <div class="grid-2" id="gridOrderCharts">
           <div class="card">
@@ -2122,6 +1107,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
       <section class="view" id="view-products">
         <div class="card">
           <div class="card-head">
+            <input class="input" id="pSearch" style="max-width:220px;margin-right:8px" data-i18n-ph="搜索商品" placeholder="搜索商品">
             <h3><span data-i18n="商品列表">商品列表</span> <span class="muted sm-text" id="pCount"></span> <span class="badge danger" id="pLow" hidden></span></h3>
             <button class="btn ghost sm" type="button" data-act="products-refresh" data-i18n="刷新">刷新</button>
           </div>
@@ -2292,742 +1278,1105 @@ const CFG_SOURCE = (savedCfg && savedCfg.url)
  * 3. 中英文
  * -------------------------------------------------------------------------- */
 const EN = {
-  '可售': 'Available',
-  '在途 / 已售': 'In transit / sold',
-  '调库存': 'Stock',
-  '调整库存': 'Adjust stock',
-  '当前可售': 'Current available',
-  '调整后数量': 'New quantity',
-  '原因': 'Reason',
-  '补货到货 / 盘点差异 / 报损': 'Restock / stocktake difference / damage',
-  '差额会自动记一条流水，方便以后对账': 'The difference is logged automatically for later reconciliation',
-  '下单出库': 'Order out',
-  '订单取消回补': 'Order cancelled — returned',
-  '手动调整': 'Manual adjust',
-  '补货入库': 'Restock in',
-  '调整': 'Adjust',
-  '还没有流水记录': 'No movements yet',
-  '变化': 'Change',
-  '库存已更新': 'Stock updated',
-  '数量必须是不小于 0 的数字': 'Quantity must be 0 or more',
-  '{n} 个低库存': '{n} low stock',
-  '{n} 个商品库存不足 5': '{n} product(s) below 5',
-  '暂无图片': 'No image',
-  '缺货': 'Out of stock',
-  '还没有上架商品': 'No products yet',
-  '到「商品管理」添加第一个商品': 'Add your first product in Products',
-  '商家还没有上架商品，请联系他们': 'This shop has not listed any products yet',
-  '已选 {n} 件': '{n} selected',
-  '确认订单': 'Confirm order',
-  '商品': 'Product',
-  '小计': 'Subtotal',
-  '合计': 'Total',
-  '送货要求、时间等': 'Delivery notes, time, etc.',
-  '提交订单': 'Place order',
-  '提交中…': 'Submitting…',
-  '购物车是空的': 'Your cart is empty',
-  '等 {n} 种商品': 'and {n} more',
-  '下单成功，共 {v}': 'Order placed — {v}',
-  '库存只剩 {n}': 'Only {n} left in stock',
-  '图片': 'Image',
-  '商品名': 'Name',
-  '分类': 'Category',
-  '价格': 'Price',
-  '单位': 'Unit',
-  '库存': 'Stock',
-  '已上架': 'Active',
-  '已下架': 'Hidden',
-  '无图': 'No img',
-  '新增商品': 'New product',
-  '商品列表': 'Products',
-  '商品管理': 'Products',
-  '商品菜单': 'Menu',
-  '全部分类': 'All categories',
-  '搜索商品': 'Search products',
-  '商品图片': 'Product image',
-  '手机拍照或选图，自动压缩到 800px 内': 'Take a photo or pick one — auto-compressed to 800px',
-  '上架状态': 'Visibility',
-  '简介': 'Description',
-  '上传中…': 'Uploading…',
-  '上传失败': 'Upload failed',
-  '请填写商品名': 'Enter a product name',
-  '价格必须是不小于 0 的数字': 'Price must be 0 or more',
-  '商品已更新': 'Product updated',
-  '商品已添加': 'Product added',
-  '商品已删除': 'Product deleted',
-  '删除商品': 'Delete product',
-  '将永久删除「{x}」，已生成的订单明细不受影响。': 'This permanently deletes “{x}”. Existing order lines are unaffected.',
-  '还没有商品': 'No products yet',
-  '点右上角「+ 新增商品」上架第一个': 'Use “+ New product” to list your first one',
-  '共 {n} 个': '{n} total',
-  '请先选择公司': 'Choose a company first',
-  '下架': 'Hide',
-  '上架': 'Publish',
-  /* 品牌 */
-  '您的公司订单平台': 'Your company order platform',
-
-  /* 导航与视图 */
-  '仪表盘': 'Dashboard',
-  '订单管理': 'Orders',
-  '用户管理': 'Users',
-  '公司管理': 'Companies',
-  '系统配置': 'Settings',
-  '全平台业务概览': 'Platform overview',
-  '本公司业务概览': 'Company overview',
-  '查看并管理所有公司的订单': 'All orders across companies',
-  '查看并管理本公司订单': 'Orders of your company',
-  '管理全部账号、角色与公司归属': 'Accounts, roles and company assignment',
-  '管理本公司成员与角色': 'Members and roles of your company',
-  '新增、编辑、停用公司': 'Create, edit and disable companies',
-  'Supabase 连接状态与数据库初始化脚本': 'Connection status and init SQL',
-
-  /* 登录/注册 */
-  '登录': 'Sign in',
-  '付款': 'Payment',
-  '付款状态': 'Payment status',
-  '已付金额': 'Amount paid',
-  '付款截止': 'Payment due',
-  '未收': 'Owed',
-  '已逾期': 'Overdue',
-  '全部付款': 'All payments',
-  '未付': 'Unpaid',
-  '部分付款': 'Part paid',
-  '已付': 'Paid',
-  '赊账': 'Credit',
-  '谁欠多少、哪笔逾期了': 'Who owes what, and what is overdue',
-  '只看逾期': 'Overdue only',
-  '客户欠款': 'Customer balances',
-  '未收货款': 'Outstanding',
-  '其中逾期': 'Of which overdue',
-  '未收笔数': 'Open orders',
-  '未结清的订单': 'Unsettled orders',
-  '共 {n} 位客户': '{n} customers',
-  '{n} 位客户': '{n} customers',
-  '{n} 位客户有逾期': '{n} with overdue',
-  '逾期 {d} 天': '{d} days overdue',
-  '{n} 笔': '{n}',
-  '明细': 'Details',
-  '收起': 'Hide',
-  '催款': 'Remind',
-  '没有未收货款': 'Nothing outstanding',
-  '所有订单都付清了，或者还没有订单': 'Every order is settled, or there are no orders yet',
-  '最早到期': 'Earliest due',
-  '单数': 'Orders',
-  '已付金额不能大于订单金额': 'Amount paid cannot exceed the order amount',
-  '部分付款：已付金额要大于 0 且小于订单金额': 'Part paid: the paid amount must be above 0 and below the order total',
-  '按客户汇总未收货款；金额来自「金额 − 已付」，逾期按付款截止日判断': 'Outstanding grouped by customer — amount minus paid, overdue by due date',
-  '你好 {name}，你目前在我们这里有 {n} 笔订单未结清，合计 {amt}{od}。方便的话请安排付款，谢谢！': 'Hi {name}, you have {n} unsettled order(s) with us totalling {amt}{od}. A payment would be much appreciated — thank you!',
-  '（其中 {k} 笔已逾期）': ' ({k} overdue)',
-  '这位客户没有留电话': 'This customer has no phone number on file',
-  '验证码': 'Verification',
-  '换一题': 'New question',
-  '请填写验证码': 'Enter the verification answer',
-  '验证码不正确，请重试': 'Wrong answer — try again',
-  '密码连错 {n} 次，已临时锁定，请 {m} 分 {s} 秒后再试': 'Too many attempts ({n}). Locked — try again in {m}m {s}s.',
-  '（还可尝试 {n} 次，超过将锁定 15 分钟）': '({n} attempts left before a 15-minute lock)',
-  '三步开始用': 'Get started in 3 steps',
-  '跟着走完这三步，你的团队就能正常接单了': 'Finish these steps and your team can start taking orders.',
-  '不再提示': 'Don’t show again',
-  '去完成': 'Do it',
-  '建第一家公司': 'Create your first company',
-  '公司管理 → 新建公司，填名称和默认货币': 'Companies → New company: name and default currency',
-  '生成第一个邀请码': 'Generate the first invite',
-  '用户管理 → 邀请客服，把二维码或邀请码发给对方': 'Users → Invite agent: send them the QR or code',
-  '等对方注册后登录看看': 'Wait for them to sign up',
-  '用他注册的邮箱能登录，说明租户开通成功': 'If their email can sign in, the tenant is live',
-  '邀请第一个客服': 'Invite your first agent',
-  '用户管理 → 邀请客服，发二维码或邀请码给他': 'Users → Invite agent: send the QR or code',
-  '下第一笔订单': 'Create your first order',
-  '订单管理 → 新建订单，金额会自动带公司货币': 'Orders → New order: the amount picks up your company currency',
-  '把订单标记为已发货': 'Mark an order as shipped',
-  '熟悉一下状态流转：待处理 → 已确认 → 已发货': 'Learn the flow: Pending → Confirmed → Shipped',
-  '录第一笔订单': 'Record your first order',
-  '订单管理 → 新建订单，填客户和商品即可': 'Orders → New order: customer and product is enough',
-  '等管理员确认': 'Wait for admin confirmation',
-  '订单确认后状态会变成「已确认」': 'Once confirmed the status becomes “Confirmed”',
-  '开启新订单提醒': 'Enable order alerts',
-  '新订单提醒已开启（页面开着时生效）': 'Order alerts on — works while this page is open',
-  '新订单提醒未开启：开启后有人下单，浏览器会弹通知': 'Order alerts off — enable to get a browser notification for new orders',
-  '新订单': 'New order',
-  '这几天还没有下单记录': 'No orders in the last few days',
-  '下第一笔订单，这里就会出图': 'Create the first order and the chart appears here',
-  '已开启：有人下单会在浏览器弹提醒': 'Enabled — you will get a browser notification for new orders',
-  '没有拿到通知权限，可以在浏览器地址栏的锁形图标里手动允许': 'Permission was not granted — allow notifications from the padlock icon in the address bar',
-  '这个浏览器不支持桌面通知': 'This browser does not support desktop notifications',
-  '登录查看你的订单状态': 'Sign in to check your order status',
-  '平台控制台': 'Platform console',
-  '只管理公司与账号，不看各公司订单数据': 'Companies and accounts only — never tenant order data',
-  '已开通租户': 'Active tenants',
-  '平台账号': 'Accounts',
-  '待接受邀请': 'Pending invites',
-  '邀请码未使用': 'Codes not used yet',
-  '平台不展示各公司订单': 'Tenant orders are not shown here',
-  '订单数据属于各公司自己，平台方无权查看。需要处理订单请登录对应公司的账号。': 'Orders belong to each company. The platform owner has no access — sign in with the company account to handle them.',
-  '订单数据': 'Order data',
-  '已隔离': 'Isolated',
-  '你的邮箱': 'your@email.com',
-  '记住我': 'Remember me',
-  '忘记密码？': 'Forgot password?',
-  '我已阅读并同意': 'I have read and agree to the',
-  '使用条款': 'Terms of Service',
-  '隐私政策': 'Privacy Policy',
-  '和': 'and',
-  '请先阅读并同意使用条款和隐私政策': 'Please accept the Terms and Privacy Policy first',
-  '没有邀请码？': 'No invite code?',
-  'WhatsApp 联系管理员': 'WhatsApp the admin',
-  'WhatsApp 联系 Max Dee': 'WhatsApp Max Dee',
-  '注册需要邀请码，请向管理员索取。': 'An invite code is required — ask the admin.',
-  '注册需要邀请码。没有邀请码？点上面的 WhatsApp 联系管理员。': 'An invite code is required. No code? Tap WhatsApp above.',
-  '管理员：建表 SQL / 配置说明': 'Admin: setup notes',
-  '管理员说明': 'Admin notes',
-  '重置密码': 'Reset password',
-  '输入注册时用的邮箱，我们会发一封重置密码的邮件给你。': 'Enter the email you signed up with and we will send a reset link.',
-  '发送重置邮件': 'Send reset link',
-  '如果该邮箱已注册，重置邮件已发送，请查收（含垃圾箱）': 'If that email is registered, a reset link is on its way (check spam too).',
-  '设置新密码': 'Set a new password',
-  '请输入新密码（至少 6 位）。': 'Enter a new password (at least 6 characters).',
-  '新密码': 'New password',
-  '稍后': 'Later',
-  '保存新密码': 'Save password',
-  '密码已更新，请用新密码登录': 'Password updated — sign in with it.',
-  '我知道了': 'Got it',
-  '最后更新：2026-11 · 如需纸质版本或提出异议，请联系你所在公司的管理员': 'Last updated: Nov 2026 · For a written copy or objections, WhatsApp Max Dee +6587171111',
-  '不放在网页里': 'Not embedded',
-  '为了防止访客看到表结构和权限策略，初始化 SQL 不再写进这个网页。请在部署包里的 supabase-schema.sql 文件中打开，整段复制到 Supabase → SQL Editor 执行。': 'The init SQL is no longer embedded here, so visitors cannot read your schema. Open supabase-schema.sql from the deploy package and run it in Supabase → SQL Editor.',
-  '注册': 'Sign up',
-  '退出登录': 'Sign out',
-  '邮箱': 'Email',
-  '密码': 'Password',
-  '姓名': 'Name',
-  '确认密码': 'Confirm password',
-  '请输入密码': 'Enter password',
-  '你的姓名': 'Your name',
-  '至少 6 位': 'Min. 6 characters',
-  '再输入一次': 'Repeat password',
-  '创建账号': 'Create account',
-  '保存并连接': 'Save & connect',
-  '连接 Supabase': 'Connect Supabase',
-  '本站还没连接数据库': 'This site is not connected yet',
-  '页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。': 'The page opened, but the database connection has not been built into this file yet — sign-in and sign-up are unavailable. Please contact the admin.',
-  '（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）': '(Admins: put Project URL and anon key into the two constants at the top of the file, then re-upload to GitHub Pages.)',
-  '我是管理员，就在这里填': 'I am the admin — enter it here',
-  '只需填一次': 'once only',
-  '在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：': 'In Supabase open Project Settings → API and paste the two values below:',
-  '只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。': 'Kept in this browser only. Re-enter after switching device. For deployment, hard-code it in the file.',
-  '查看建表 SQL / 配置说明': 'Setup SQL & guide',
-  '连接填错了？重新填写': 'Wrong connection? Re-enter',
-  '注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。': 'An invite is required. If nobody exists yet, the first sign-up becomes super admin.',
-  '首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。': 'First run: no user exists yet — the first account becomes super admin.',
-  '注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。': 'An invite is required. Ask your admin to invite your email first.',
-  '账号暂不可用': 'Account unavailable',
-  '取消': 'Cancel',
-  '确定': 'Confirm',
-  '保存': 'Save',
-
-  /* 通用 */
-  '重置': 'Reset',
-  '刷新': 'Refresh',
-  '编辑': 'Edit',
-  '删除': 'Delete',
-  '停用': 'Disable',
-  '启用': 'Enable',
-  '撤销': 'Revoke',
-  '复制': 'Copy',
-  '复制链接': 'Copy link',
-  '复制文案': 'Copy text',
-  '已复制到剪贴板': 'Copied',
-  '复制失败，请手动选中复制': 'Copy failed — select manually',
-  '取消操作': 'Cancel',
-
-  /* 角色/状态 */
-  '超级管理员': 'Super admin',
-  '公司管理员': 'Company admin',
-  '普通用户': 'Member',
-  '待处理': 'Pending',
-  '已确认': 'Confirmed',
-  '已发货': 'Shipped',
-  '已完成': 'Completed',
-  '已取消': 'Cancelled',
-  '正常': 'Active',
-  '已停用': 'Disabled',
-  '未分配': 'Unassigned',
-  '未分配公司': 'No company',
-  '未填写': 'Unnamed',
-  '我': 'me',
-
-  /* 表格 */
-  '订单号': 'Order no.',
-  '客户': 'Customer',
-  '客户姓名': 'Customer',
-  '联系方式': 'Contact',
-  '商品': 'Product',
-  '商品名称': 'Product',
-  '数量': 'Qty',
-  '金额': 'Amount',
-  '状态': 'Status',
-  '归属公司': 'Company',
-  '下单时间': 'Order date',
-  '操作': 'Actions',
-  '成员': 'Member',
-  '角色': 'Role',
-  '所属公司': 'Company',
-  '加入时间': 'Joined',
-  '邀请时间': 'Invited',
-  '公司名称': 'Company',
-  '编号': 'Code',
-  '联系人': 'Contact',
-  '电话': 'Phone',
-  '创建时间': 'Created',
-  '公司': 'Company',
-  '全部状态': 'All statuses',
-  '全部公司': 'All companies',
-  '订单列表': 'Orders',
-  '公司成员': 'Members',
-  '待接受的邀请': 'Pending invites',
-  '点击「编辑」可修改订单': 'Use Edit to modify an order',
-  '复制链接发给对方，用该邮箱注册即自动加入': 'Copy the link — they sign up with that email to join',
-  '搜索客户姓名 / 商品 / 电话': 'Search customer / product / phone',
-  '搜索姓名 / 邮箱': 'Search name / email',
-  '搜索公司名称 / 编号': 'Search company / code',
-  '近 7 天下单金额': 'Last 7 days',
-  '按天统计': 'Daily',
-  '订单状态分布': 'Status breakdown',
-  '最近订单': 'Recent orders',
-  '查看全部': 'View all',
-  '新建订单': 'New order',
-  '邀请用户': 'Invite user',
-  '+ 邀请用户': '+ Invite user',
-  '+ 新建公司': '+ New company',
-  '新建公司': 'New company',
-  '编辑订单': 'Edit order',
-  '编辑公司': 'Edit company',
-  '备注': 'Note',
-  '选填': 'Optional',
-  '金额（元）': 'Amount',
-  '货币': 'Currency',
-  '默认货币': 'Default currency',
-
-  /* 计数 */
-  '共 {n} 条': '{n} total',
-  '共 {n} 人': '{n} members',
-  '共 {n} 家': '{n} companies',
-  '共 {n} 单': '{n}',
-  '第 {a} / {b} 页 · 共 {n} 条': 'Page {a} / {b} · {n} total',
-  '上一页': 'Prev',
-  '下一页': 'Next',
-  '没有符合条件的订单': 'No matching orders',
-  '换个筛选条件，或点击「+ 新建订单」录入': 'Adjust filters, or create a new order',
-  '暂无成员': 'No members yet',
-  '点击「+ 邀请用户」把成员拉进来': 'Use “Invite user” to add members',
-  '没有待接受的邀请': 'No pending invites',
-  '邀请发出后，对方用该邮箱注册即自动加入': 'After inviting, the user signs up with that email to join',
-  '还没有公司': 'No companies yet',
-  '点击「+ 新建公司」创建第一家': 'Use “New company” to create the first one',
-  '还没有订单': 'No orders yet',
-  '点击右上角「+ 新建订单」录入第一笔': 'Use “New order” to create the first one',
-
-  /* 仪表盘 */
-  '凌晨好': 'Good night',
-  '上午好': 'Good morning',
-  '中午好': 'Good noon',
-  '下午好': 'Good afternoon',
-  '晚上好': 'Good evening',
-  '全平台数据': 'All companies',
-  '{n} 家公司 · {m} 位用户': '{n} companies · {m} users',
-  '全平台订单': 'All orders',
-  '订单总数': 'Total orders',
-  '本月订单': 'This month',
-  '本月金额': 'Revenue (¥)',
-  '本月新增': 'New this month',
-  '需要跟进': 'Needs follow-up',
-  '本月成交': 'Revenue this month',
-  '累计 {v}': '{v} total',
-
-  /* 确认框 */
-  '退出登录': 'Sign out',
-  '确定要退出当前账号吗？': 'Sign out of the current account?',
-  '删除订单': 'Delete order',
-  '确定删除订单「{x}」吗？删除后无法恢复。': 'Delete order “{x}”? This cannot be undone.',
-  '订单已删除': 'Order deleted',
-  '订单已更新': 'Order updated',
-  '订单已创建': 'Order created',
-  '修改角色': 'Change role',
-  '将「{x}」的角色改为「{r}」？': 'Change role of “{x}” to “{r}”?',
-  '角色已更新': 'Role updated',
-  '停用账号': 'Disable account',
-  '启用账号': 'Enable account',
-  '停用后「{x}」将无法登录，历史数据会保留。': '“{x}” will not be able to sign in. Data is kept.',
-  '恢复「{x}」的登录权限？': 'Restore access for “{x}”?',
-  '账号已停用': 'Account disabled',
-  '账号已启用': 'Account enabled',
-  '调整所属公司': 'Change company',
-  '将「{x}」调整到「{c}」？调整后只能看到新公司的数据。': 'Move “{x}” to “{c}”? They will only see the new company data.',
-  '所属公司已更新': 'Company updated',
-  '删除成员': 'Delete member',
-  '将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。此操作不可恢复，建议优先使用「停用」。': 'Delete “{x}”? The account will stop working and their orders are deleted. Prefer “Disable”.',
-  '确认删除': 'Confirm delete',
-  '成员已删除': 'Member deleted',
-  '撤销邀请': 'Revoke invite',
-  '撤销后该邮箱将无法通过此邀请注册。': 'The email can no longer use this invite.',
-  '邀请已撤销': 'Invite revoked',
-  '删除公司': 'Delete company',
-  '将永久删除「{x}」及其名下全部订单，该公司用户会变成「未分配公司」。此操作不可恢复。': 'Permanently delete “{x}” and all its orders. Users become unassigned. This cannot be undone.',
-  '公司已删除': 'Company deleted',
-  '公司已更新': 'Company updated',
-  '公司已创建': 'Company created',
-  '删除订单失败': 'Failed to delete order',
-  '请输入 {x} 以确认：': 'Type {x} to confirm:',
-
-  /* 邀请 */
-  '成员邮箱': 'Member email',
-  '加入公司': 'Company',
-  '发送邀请': 'Send invite',
-  '邀请已创建': 'Invite created',
-  '对方打开本系统 → 注册 → 使用该邮箱创建账号，系统会自动写入角色与公司。': 'The invitee opens this app, signs up with that email, and gets the role and company automatically.',
-  '邀请链接': 'Invite link',
-  '发给对方的话术': 'Message to send',
-  '系统不会自动发邮件（纯前端无法调用邮件服务）。把上面两段复制到微信 / 邮箱发给对方即可。': 'No email is sent automatically (a pure frontend cannot call a mail service). Copy either block and send it yourself.',
-  '邀请 · {e}': 'Invite · {e}',
-  '你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n请用邮箱 {e} 注册（点开链接会自动填好）：\n{link}': 'Hi! {c} invited you to MaxAI Portal.\nSign up with {e} (the link prefills it):\n{link}',
-  '该邮箱已经是系统成员': 'This email is already a member',
-  '该邮箱已有一条待接受的邀请': 'There is already a pending invite for this email',
-  '邮箱格式不正确': 'Invalid email',
-  '请选择公司': 'Pick a company',
-
-  /* 配置页 */
-  '连接状态': 'Connection',
-  '已配置': 'Connected',
-  '待配置': 'Not configured',
-  '配置来源': 'Source',
-  '文件常量': 'File constants',
-  '浏览器本地': 'Browser storage',
-  '未配置': 'Not configured',
-  '登录账号': 'Account',
-  '未登录': 'Not signed in',
-  '重新填写连接配置': 'Re-enter connection',
-  '复制配置代码（贴进文件顶部）': 'Copy config code (paste at top of file)',
-  '你的连接配置只存在这台电脑的浏览器里。要让别人打开页面就能用，点上面的「复制配置代码」，粘贴到文件顶部两个常量处，再重新上传到 GitHub Pages。': 'Your connection lives only in this browser. To let others open the page directly, copy the config code and paste it into the two constants at the top of the file, then re-upload to GitHub Pages.',
-  '打开 Supabase 后台': 'Open Supabase',
-  '上线四步': 'Four steps',
-  '数据库初始化 SQL': 'Database init SQL',
-  '复制 SQL': 'Copy SQL',
-  '初始化 SQL 已复制': 'SQL copied',
-  '打开 Supabase': 'Open Supabase',
-  '权限与数据隔离说明': 'Permissions & isolation',
-  '邀请 / 邮件常见问题': 'Invites & email FAQ',
-  '邀请 / 二维码常见问题': 'Invites & QR FAQ',
-  '账号没有分配公司时看不到数据，超级管理员可在「用户管理」里直接改所属公司。': 'An account without a company sees nothing; a super admin can assign it in Users.',
-  '浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量': 'Browser storage is blocked (incognito?). Use the constants in the file instead.',
-
-  /* 错误 */
-  '邮箱或密码不正确': 'Wrong email or password',
-  '邮箱还未验证，请先到邮箱点击确认链接': 'Email not verified — click the link we sent you',
-  '邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册': 'Email not verified. If the confirmation link opens localhost, ask the admin to confirm the account in Supabase (or turn off Confirm email and sign up again).',
-  '该邮箱已注册，请直接登录': 'This email already has an account — sign in',
-  'Supabase anon key 不正确，请检查配置': 'Invalid anon key',
-  '请先在文件顶部填写 Supabase URL 与 anon key': 'Fill in the Supabase URL and anon key first',
-  '网络请求失败，请检查网络或 Supabase URL': 'Network request failed — check network or URL',
-  '没有权限执行该操作（被 RLS 策略拒绝）': 'Not allowed (blocked by RLS)',
-  '登录状态已过期，请重新登录': 'Session expired — sign in again',
-  '数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）': 'Database not initialized — run the setup SQL first',
-  '数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。': 'Database is not on the invite-code version yet — run fix-invite-v2.sql in Supabase SQL Editor, then reload.',
-  '请确认已执行初始化 SQL，或联系超级管理员补建档案。': 'Run the setup SQL, or ask a super admin to create your profile.',
-  '该邮箱未获得邀请，请联系公司管理员在「用户管理」中邀请你': 'This email has no invite — ask your company admin to invite it',
-  '账号资料不存在': 'Profile missing',
-  '请填写客户姓名': 'Enter the customer name',
-  '请填写商品名称': 'Enter the product name',
-  '数量必须是不小于 0 的数字': 'Quantity must be ≥ 0',
-  '金额必须是不小于 0 的数字': 'Amount must be ≥ 0',
-  '请填写公司名称': 'Enter the company name',
-  '请填写姓名': 'Enter your name',
-  '密码至少 6 位': 'Password must be at least 6 characters',
-  '两次输入的密码不一致': 'Passwords do not match',
-  '请输入邮箱和密码': 'Enter email and password',
-  '邮箱格式不对，应形如 https://abcdefgh.supabase.co': 'URL must look like https://abcdefgh.supabase.co',
-  'anon key 看起来不完整，请回 Project Settings → API 重新复制整串': 'The anon key looks truncated — copy it again from Settings → API',
-  '保存中…': 'Saving…',
-  '登录中…': 'Signing in…',
-  '处理中…': 'Working…',
-  '发送中…': 'Sending…',
-  '生成中…': 'Generating…',
-
-  /* 客服支持 */
-  '客服支持': 'Support',
-  '联系方式与使用帮助': 'Contact & help',
-  '联系客服': 'Contact support',
-  '在线': 'Online',
-  '管理员': 'Admin',
-  'WhatsApp / 电话同号，遇到问题直接联系': 'WhatsApp / phone, reach us anytime',
-  'WhatsApp 联系': 'WhatsApp',
-  '拨打电话': 'Call',
-  '复制号码': 'Copy number',
-  '扫码联系': 'Scan to contact',
-  '常见问题': 'FAQ',
-  '二维码加载失败，请用下方链接': 'QR failed — use the link instead',
-
-  /* 邀请码 */
-  '邀请码': 'Invite code',
-  '邀请客服': 'Invite agent',
-  '+ 邀请客服': '+ Invite agent',
-  '待使用的邀请码': 'Unused invite codes',
-  '让对方扫码或输入邀请码，注册即自动加入': 'Scan the QR or enter the code — signup joins the company',
-  '人员邀请': 'Invites',
-  '备注（如：客服 小王）': 'Note (e.g. agent name)',
-  '选填，方便你自己认人': 'Optional, for your reference',
-  '有效期': 'Validity',
-  '长期有效，用完自动作废': 'Until used',
-  '生成邀请码': 'Generate code',
-  '邀请码已生成': 'Invite code ready',
-  '分享到 WhatsApp': 'Share on WhatsApp',
-  '发给对方的话术': 'Message to send',
-  '二维码 / 分享': 'QR / Share',
-  '没有待使用的邀请码': 'No unused invite codes',
-  '点「邀请客服」生成二维码和邀请码': 'Use “Invite agent” to create a QR and code',
-  '邀请码无效或已被使用': 'Invite code is invalid or already used',
-  '请输入邀请码，或联系管理员获取': 'Enter an invite code, or ask the admin for one',
-  '生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。': 'You will get a QR and a 6-character code — share it on WhatsApp or let them scan.',
-  '让对方扫码，或把邀请码/链接发到 WhatsApp、微信。对方注册时填这个邀请码即可自动加入公司。': 'Let them scan the QR, or send the code/link on WhatsApp or WeChat. Entering the code at sign-up joins them to the company automatically.',
-  '完成': 'Done',
-  '你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n邀请码：{code}\n点开链接注册（会自动填好邀请码）：\n{link}\n有问题 WhatsApp 联系 {admin}：{phone}':
-    'Hi! {c} invited you to MaxAI Portal.\nInvite code: {code}\nOpen the link to sign up (the code is prefilled):\n{link}\nAny questions? WhatsApp {admin}: {phone}',
-  '邀请 · {e}': 'Invite · {e}',
-  '需要邀请码': 'Invite code required'
+  "可售": "Available",
+  "在途 / 已售": "In transit / sold",
+  "调库存": "Stock",
+  "调整库存": "Adjust stock",
+  "当前可售": "Current available",
+  "调整后数量": "New quantity",
+  "原因": "Reason",
+  "补货到货 / 盘点差异 / 报损": "Restock / stocktake difference / damage",
+  "差额会自动记一条流水，方便以后对账": "The difference is logged automatically for later reconciliation",
+  "下单出库": "Order out",
+  "订单取消回补": "Order cancelled — returned",
+  "手动调整": "Manual adjust",
+  "补货入库": "Restock in",
+  "调整": "Adjust",
+  "还没有流水记录": "No movements yet",
+  "变化": "Change",
+  "库存已更新": "Stock updated",
+  "数量必须是不小于 0 的数字": "Quantity must be ≥ 0",
+  "{n} 个低库存": "{n} low stock",
+  "{n} 个商品库存不足 5": "{n} product(s) below 5",
+  "暂无图片": "No image",
+  "缺货": "Out of stock",
+  "还没有上架商品": "No products yet",
+  "到「商品管理」添加第一个商品": "Add your first product in Products",
+  "商家还没有上架商品，请联系他们": "This shop has not listed any products yet",
+  "已选 {n} 件": "{n} selected",
+  "确认订单": "Confirm order",
+  "商品": "Product",
+  "小计": "Subtotal",
+  "合计": "Total",
+  "送货要求、时间等": "Delivery notes, time, etc.",
+  "提交订单": "Place order",
+  "提交中…": "Submitting…",
+  "购物车是空的": "Your cart is empty",
+  "等 {n} 种商品": "and {n} more",
+  "下单成功，共 {v}": "Order placed — {v}",
+  "库存只剩 {n}": "Only {n} left in stock",
+  "图片": "Image",
+  "商品名": "Name",
+  "分类": "Category",
+  "价格": "Price",
+  "单位": "Unit",
+  "库存": "Stock",
+  "已上架": "Active",
+  "已下架": "Hidden",
+  "无图": "No img",
+  "新增商品": "New product",
+  "商品列表": "Products",
+  "商品管理": "Products",
+  "商品菜单": "Menu",
+  "全部分类": "All categories",
+  "搜索商品": "Search products",
+  "商品图片": "Product image",
+  "手机拍照或选图，自动压缩到 800px 内": "Take a photo or pick one — auto-compressed to 800px",
+  "上架状态": "Visibility",
+  "简介": "Description",
+  "上传中…": "Uploading…",
+  "上传失败": "Upload failed",
+  "请填写商品名": "Enter a product name",
+  "价格必须是不小于 0 的数字": "Price must be 0 or more",
+  "商品已更新": "Product updated",
+  "商品已添加": "Product added",
+  "商品已删除": "Product deleted",
+  "删除商品": "Delete product",
+  "将永久删除「{x}」，已生成的订单明细不受影响。": "This permanently deletes “{x}”. Existing order lines are unaffected.",
+  "还没有商品": "No products yet",
+  "点右上角「+ 新增商品」上架第一个": "Use “+ New product” to list your first one",
+  "共 {n} 个": "{n} total",
+  "请先选择公司": "Choose a company first",
+  "下架": "Hide",
+  "上架": "Publish",
+  "您的公司订单平台": "Your company order platform",
+  "仪表盘": "Dashboard",
+  "订单管理": "Orders",
+  "用户管理": "Users",
+  "公司管理": "Companies",
+  "系统配置": "Settings",
+  "全平台业务概览": "Platform overview",
+  "本公司业务概览": "Company overview",
+  "查看并管理所有公司的订单": "All orders across companies",
+  "查看并管理本公司订单": "Orders of your company",
+  "管理全部账号、角色与公司归属": "Accounts, roles and company assignment",
+  "管理本公司成员与角色": "Members and roles of your company",
+  "新增、编辑、停用公司": "Create, edit and disable companies",
+  "Supabase 连接状态与数据库初始化脚本": "Connection status and init SQL",
+  "登录": "Sign in",
+  "付款": "Payment",
+  "付款状态": "Payment status",
+  "已付金额": "Amount paid",
+  "付款截止": "Payment due",
+  "未收": "Owed",
+  "已逾期": "Overdue",
+  "全部付款": "All payments",
+  "未付": "Unpaid",
+  "部分付款": "Part paid",
+  "已付": "Paid",
+  "赊账": "Credit",
+  "谁欠多少、哪笔逾期了": "Who owes what, and what is overdue",
+  "只看逾期": "Overdue only",
+  "客户欠款": "Customer balances",
+  "未收货款": "Outstanding",
+  "其中逾期": "Of which overdue",
+  "未收笔数": "Open orders",
+  "未结清的订单": "Unsettled orders",
+  "共 {n} 位客户": "{n} customers",
+  "{n} 位客户": "{n} customers",
+  "{n} 位客户有逾期": "{n} with overdue",
+  "逾期 {d} 天": "{d} days overdue",
+  "{n} 笔": "{n}",
+  "明细": "Details",
+  "收起": "Hide",
+  "催款": "Remind",
+  "没有未收货款": "Nothing outstanding",
+  "所有订单都付清了，或者还没有订单": "Every order is settled, or there are no orders yet",
+  "最早到期": "Earliest due",
+  "单数": "Orders",
+  "已付金额不能大于订单金额": "Amount paid cannot exceed the order amount",
+  "部分付款：已付金额要大于 0 且小于订单金额": "Part paid: the paid amount must be above 0 and below the order total",
+  "按客户汇总未收货款；金额来自「金额 − 已付」，逾期按付款截止日判断": "Outstanding grouped by customer — amount minus paid, overdue by due date",
+  "你好 {name}，你目前在我们这里有 {n} 笔订单未结清，合计 {amt}{od}。方便的话请安排付款，谢谢！": "Hi {name}, you have {n} unsettled order(s) with us totalling {amt}{od}. A payment would be much appreciated — thank you!",
+  "（其中 {k} 笔已逾期）": " ({k} overdue)",
+  "这位客户没有留电话": "This customer has no phone number on file",
+  "验证码": "Verification",
+  "换一题": "New question",
+  "请填写验证码": "Enter the verification answer",
+  "验证码不正确，请重试": "Wrong answer — try again",
+  "密码连错 {n} 次，已临时锁定，请 {m} 分 {s} 秒后再试": "Too many attempts ({n}). Locked — try again in {m}m {s}s.",
+  "（还可尝试 {n} 次，超过将锁定 15 分钟）": "({n} attempts left before a 15-minute lock)",
+  "三步开始用": "Get started in 3 steps",
+  "跟着走完这三步，你的团队就能正常接单了": "Finish these steps and your team can start taking orders.",
+  "不再提示": "Don’t show again",
+  "去完成": "Do it",
+  "建第一家公司": "Create your first company",
+  "公司管理 → 新建公司，填名称和默认货币": "Companies → New company: name and default currency",
+  "生成第一个邀请码": "Generate the first invite",
+  "用户管理 → 邀请客服，把二维码或邀请码发给对方": "Users → Invite agent: send them the QR or code",
+  "等对方注册后登录看看": "Wait for them to sign up",
+  "用他注册的邮箱能登录，说明租户开通成功": "If their email can sign in, the tenant is live",
+  "邀请第一个客服": "Invite your first agent",
+  "用户管理 → 邀请客服，发二维码或邀请码给他": "Users → Invite agent: send the QR or code",
+  "下第一笔订单": "Create your first order",
+  "订单管理 → 新建订单，金额会自动带公司货币": "Orders → New order: the amount picks up your company currency",
+  "把订单标记为已发货": "Mark an order as shipped",
+  "熟悉一下状态流转：待处理 → 已确认 → 已发货": "Learn the flow: Pending → Confirmed → Shipped",
+  "录第一笔订单": "Record your first order",
+  "订单管理 → 新建订单，填客户和商品即可": "Orders → New order: customer and product is enough",
+  "等管理员确认": "Wait for admin confirmation",
+  "订单确认后状态会变成「已确认」": "Once confirmed the status becomes “Confirmed”",
+  "开启新订单提醒": "Enable order alerts",
+  "新订单提醒已开启（页面开着时生效）": "Order alerts on — works while this page is open",
+  "新订单提醒未开启：开启后有人下单，浏览器会弹通知": "Order alerts off — enable to get a browser notification for new orders",
+  "新订单": "New order",
+  "这几天还没有下单记录": "No orders in the last few days",
+  "下第一笔订单，这里就会出图": "Create the first order and the chart appears here",
+  "已开启：有人下单会在浏览器弹提醒": "Enabled — you will get a browser notification for new orders",
+  "没有拿到通知权限，可以在浏览器地址栏的锁形图标里手动允许": "Permission was not granted — allow notifications from the padlock icon in the address bar",
+  "这个浏览器不支持桌面通知": "This browser does not support desktop notifications",
+  "登录查看你的订单状态": "Sign in to check your order status",
+  "平台控制台": "Platform console",
+  "只管理公司与账号，不看各公司订单数据": "Companies and accounts only — never tenant order data",
+  "已开通租户": "Active tenants",
+  "平台账号": "Accounts",
+  "待接受邀请": "Pending invites",
+  "邀请码未使用": "Codes not used yet",
+  "平台不展示各公司订单": "Tenant orders are not shown here",
+  "订单数据属于各公司自己，平台方无权查看。需要处理订单请登录对应公司的账号。": "Orders belong to each company. The platform owner has no access — sign in with the company account to handle them.",
+  "订单数据": "Order data",
+  "已隔离": "Isolated",
+  "你的邮箱": "your@email.com",
+  "记住我": "Remember me",
+  "忘记密码？": "Forgot password?",
+  "我已阅读并同意": "I have read and agree to the",
+  "使用条款": "Terms of Service",
+  "隐私政策": "Privacy Policy",
+  "和": "and",
+  "请先阅读并同意使用条款和隐私政策": "Please accept the Terms and Privacy Policy first",
+  "没有邀请码？": "No invite code?",
+  "WhatsApp 联系管理员": "WhatsApp the admin",
+  "WhatsApp 联系 Max Dee": "WhatsApp Max Dee",
+  "注册需要邀请码，请向管理员索取。": "An invite code is required — ask the admin.",
+  "注册需要邀请码。没有邀请码？点上面的 WhatsApp 联系管理员。": "An invite code is required. No code? Tap WhatsApp above.",
+  "管理员：建表 SQL / 配置说明": "Admin: setup notes",
+  "管理员说明": "Admin notes",
+  "重置密码": "Reset password",
+  "输入注册时用的邮箱，我们会发一封重置密码的邮件给你。": "Enter the email you signed up with and we will send a reset link.",
+  "发送重置邮件": "Send reset link",
+  "如果该邮箱已注册，重置邮件已发送，请查收（含垃圾箱）": "If that email is registered, a reset link is on its way (check spam too).",
+  "设置新密码": "Set a new password",
+  "请输入新密码（至少 6 位）。": "Enter a new password (at least 6 characters).",
+  "新密码": "New password",
+  "稍后": "Later",
+  "保存新密码": "Save password",
+  "密码已更新，请用新密码登录": "Password updated — sign in with it.",
+  "我知道了": "Got it",
+  "最后更新：2026-11 · 如需纸质版本或提出异议，请联系你所在公司的管理员": "Last updated: Nov 2026 · For a written copy or objections, WhatsApp Max Dee +6587171111",
+  "不放在网页里": "Not embedded",
+  "为了防止访客看到表结构和权限策略，初始化 SQL 不再写进这个网页。请在部署包里的 supabase-schema.sql 文件中打开，整段复制到 Supabase → SQL Editor 执行。": "The init SQL is no longer embedded here, so visitors cannot read your schema. Open supabase-schema.sql from the deploy package and run it in Supabase → SQL Editor.",
+  "注册": "Sign up",
+  "退出登录": "Sign out",
+  "邮箱": "Email",
+  "密码": "Password",
+  "姓名": "Name",
+  "确认密码": "Confirm password",
+  "请输入密码": "Enter password",
+  "你的姓名": "Your name",
+  "至少 6 位": "Min. 6 characters",
+  "再输入一次": "Repeat password",
+  "创建账号": "Create account",
+  "保存并连接": "Save & connect",
+  "连接 Supabase": "Connect Supabase",
+  "本站还没连接数据库": "This site is not connected yet",
+  "页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。": "The page opened, but the database connection has not been built into this file yet — sign-in and sign-up are unavailable. Please contact the admin.",
+  "（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）": "(Admins: put Project URL and anon key into the two constants at the top of the file, then re-upload to GitHub Pages.)",
+  "我是管理员，就在这里填": "I am the admin — enter it here",
+  "只需填一次": "once only",
+  "在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：": "In Supabase open Project Settings → API and paste the two values below:",
+  "只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。": "Kept in this browser only. Re-enter after switching device. For deployment, hard-code it in the file.",
+  "查看建表 SQL / 配置说明": "Setup SQL & guide",
+  "连接填错了？重新填写": "Wrong connection? Re-enter",
+  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。": "An invite is required. If nobody exists yet, the first sign-up becomes super admin.",
+  "首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。": "First run: no user exists yet — the first account becomes super admin.",
+  "注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。": "An invite is required. Ask your admin to invite your email first.",
+  "账号暂不可用": "Account unavailable",
+  "取消": "Cancel",
+  "确定": "Confirm",
+  "保存": "Save",
+  "重置": "Reset",
+  "刷新": "Refresh",
+  "编辑": "Edit",
+  "删除": "Delete",
+  "停用": "Disable",
+  "启用": "Enable",
+  "撤销": "Revoke",
+  "复制": "Copy",
+  "复制链接": "Copy link",
+  "复制文案": "Copy text",
+  "已复制到剪贴板": "Copied",
+  "复制失败，请手动选中复制": "Copy failed — select manually",
+  "取消操作": "Cancel",
+  "超级管理员": "Super admin",
+  "公司管理员": "Company admin",
+  "普通用户": "Member",
+  "待处理": "Pending",
+  "已确认": "Confirmed",
+  "已发货": "Shipped",
+  "已完成": "Completed",
+  "已取消": "Cancelled",
+  "正常": "Active",
+  "已停用": "Disabled",
+  "未分配": "Unassigned",
+  "未分配公司": "No company",
+  "未填写": "Unnamed",
+  "我": "me",
+  "订单号": "Order number",
+  "客户": "Customer",
+  "客户姓名": "Customer",
+  "联系方式": "Contact",
+  "商品名称": "Product",
+  "数量": "Qty",
+  "金额": "Amount",
+  "状态": "Status",
+  "归属公司": "Company",
+  "下单时间": "Order date",
+  "操作": "Actions",
+  "成员": "Member",
+  "角色": "Role",
+  "所属公司": "Company",
+  "加入时间": "Joined",
+  "邀请时间": "Invited",
+  "公司名称": "Company",
+  "编号": "Code",
+  "联系人": "Contact",
+  "电话": "Phone",
+  "创建时间": "Created",
+  "公司": "Company",
+  "全部状态": "All statuses",
+  "全部公司": "All companies",
+  "订单列表": "Orders",
+  "公司成员": "Members",
+  "待接受的邀请": "Pending invites",
+  "点击「编辑」可修改订单": "Use Edit to modify an order",
+  "复制链接发给对方，用该邮箱注册即自动加入": "Copy the link — they sign up with that email to join",
+  "搜索客户姓名 / 商品 / 电话": "Search customer / product / phone",
+  "搜索姓名 / 邮箱": "Search name / email",
+  "搜索公司名称 / 编号": "Search company / code",
+  "近 7 天下单金额": "Last 7 days",
+  "按天统计": "Daily",
+  "订单状态分布": "Status breakdown",
+  "最近订单": "Recent orders",
+  "查看全部": "View all",
+  "新建订单": "New order",
+  "邀请用户": "Invite user",
+  "+ 邀请用户": "+ Invite user",
+  "+ 新建公司": "+ New company",
+  "新建公司": "New company",
+  "编辑订单": "Edit order",
+  "编辑公司": "Edit company",
+  "备注": "Note",
+  "选填": "Optional",
+  "金额（元）": "Amount",
+  "货币": "Currency",
+  "默认货币": "Default currency",
+  "共 {n} 条": "{n} total",
+  "共 {n} 人": "{n} members",
+  "共 {n} 家": "{n} companies",
+  "共 {n} 单": "{n}",
+  "第 {a} / {b} 页 · 共 {n} 条": "Page {a} / {b} · {n} total",
+  "上一页": "Prev",
+  "下一页": "Next",
+  "没有符合条件的订单": "No matching orders",
+  "换个筛选条件，或点击「+ 新建订单」录入": "Adjust filters, or create a new order",
+  "暂无成员": "No members yet",
+  "点击「+ 邀请用户」把成员拉进来": "Use “Invite user” to add members",
+  "没有待接受的邀请": "No pending invites",
+  "邀请发出后，对方用该邮箱注册即自动加入": "After inviting, the user signs up with that email to join",
+  "还没有公司": "No companies yet",
+  "点击「+ 新建公司」创建第一家": "Use “New company” to create the first one",
+  "还没有订单": "No orders yet",
+  "点击右上角「+ 新建订单」录入第一笔": "Use “New order” to create the first one",
+  "凌晨好": "Good night",
+  "上午好": "Good morning",
+  "中午好": "Good noon",
+  "下午好": "Good afternoon",
+  "晚上好": "Good evening",
+  "全平台数据": "All companies",
+  "{n} 家公司 · {m} 位用户": "{n} companies · {m} users",
+  "全平台订单": "All orders",
+  "订单总数": "Total orders",
+  "本月订单": "This month",
+  "本月金额": "Revenue (¥)",
+  "本月新增": "New this month",
+  "需要跟进": "Needs follow-up",
+  "本月成交": "Revenue this month",
+  "累计 {v}": "{v} total",
+  "确定要退出当前账号吗？": "Sign out of the current account?",
+  "删除订单": "Delete order",
+  "确定删除订单「{x}」吗？删除后无法恢复。": "Delete order “{x}”? This cannot be undone.",
+  "订单已删除": "Order deleted",
+  "订单已更新": "Order updated",
+  "订单已创建": "Order created",
+  "修改角色": "Change role",
+  "将「{x}」的角色改为「{r}」？": "Change role of “{x}” to “{r}”?",
+  "角色已更新": "Role updated",
+  "停用账号": "Disable account",
+  "启用账号": "Enable account",
+  "停用后「{x}」将无法登录，历史数据会保留。": "“{x}” will not be able to sign in. Data is kept.",
+  "恢复「{x}」的登录权限？": "Restore access for “{x}”?",
+  "账号已停用": "Account disabled",
+  "账号已启用": "Account enabled",
+  "调整所属公司": "Change company",
+  "将「{x}」调整到「{c}」？调整后只能看到新公司的数据。": "Move “{x}” to “{c}”? They will only see the new company data.",
+  "所属公司已更新": "Company updated",
+  "删除成员": "Delete member",
+  "将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。此操作不可恢复，建议优先使用「停用」。": "Delete “{x}”? The account will stop working and their orders are deleted. Prefer “Disable”.",
+  "确认删除": "Confirm delete",
+  "成员已删除": "Member deleted",
+  "撤销邀请": "Revoke invite",
+  "撤销后该邮箱将无法通过此邀请注册。": "The email can no longer use this invite.",
+  "邀请已撤销": "Invite revoked",
+  "删除公司": "Delete company",
+  "将永久删除「{x}」及其名下全部订单，该公司用户会变成「未分配公司」。此操作不可恢复。": "Permanently delete “{x}” and all its orders. Users become unassigned. This cannot be undone.",
+  "公司已删除": "Company deleted",
+  "公司已更新": "Company updated",
+  "公司已创建": "Company created",
+  "删除订单失败": "Failed to delete order",
+  "请输入 {x} 以确认：": "Type {x} to confirm:",
+  "成员邮箱": "Member email",
+  "加入公司": "Company",
+  "发送邀请": "Send invite",
+  "邀请已创建": "Invite created",
+  "对方打开本系统 → 注册 → 使用该邮箱创建账号，系统会自动写入角色与公司。": "The invitee opens this app, signs up with that email, and gets the role and company automatically.",
+  "邀请链接": "Invite link",
+  "发给对方的话术": "Message to send",
+  "系统不会自动发邮件（纯前端无法调用邮件服务）。把上面两段复制到微信 / 邮箱发给对方即可。": "No email is sent automatically (a pure frontend cannot call a mail service). Copy either block and send it yourself.",
+  "邀请 · {e}": "Invite · {e}",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n请用邮箱 {e} 注册（点开链接会自动填好）：\n{link}": "Hi! {c} invited you to MaxAI Portal.\nSign up with {e} (the link prefills it):\n{link}",
+  "该邮箱已经是系统成员": "This email is already a member",
+  "该邮箱已有一条待接受的邀请": "There is already a pending invite for this email",
+  "邮箱格式不正确": "Invalid email",
+  "请选择公司": "Pick a company",
+  "连接状态": "Connection",
+  "已配置": "Connected",
+  "待配置": "Not configured",
+  "配置来源": "Source",
+  "文件常量": "File constants",
+  "浏览器本地": "Browser storage",
+  "未配置": "Not configured",
+  "登录账号": "Account",
+  "未登录": "Not signed in",
+  "重新填写连接配置": "Re-enter connection",
+  "复制配置代码（贴进文件顶部）": "Copy config code (paste at top of file)",
+  "你的连接配置只存在这台电脑的浏览器里。要让别人打开页面就能用，点上面的「复制配置代码」，粘贴到文件顶部两个常量处，再重新上传到 GitHub Pages。": "Your connection lives only in this browser. To let others open the page directly, copy the config code and paste it into the two constants at the top of the file, then re-upload to GitHub Pages.",
+  "打开 Supabase 后台": "Open Supabase",
+  "上线四步": "Four steps",
+  "数据库初始化 SQL": "Database init SQL",
+  "复制 SQL": "Copy SQL",
+  "初始化 SQL 已复制": "SQL copied",
+  "打开 Supabase": "Open Supabase",
+  "权限与数据隔离说明": "Permissions & isolation",
+  "邀请 / 邮件常见问题": "Invites & email FAQ",
+  "邀请 / 二维码常见问题": "Invites & QR FAQ",
+  "账号没有分配公司时看不到数据，超级管理员可在「用户管理」里直接改所属公司。": "An account without a company sees nothing; a super admin can assign it in Users.",
+  "浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量": "Browser storage is blocked (incognito?). Use the constants in the file instead.",
+  "邮箱或密码不正确": "Wrong email or password",
+  "邮箱还未验证，请先到邮箱点击确认链接": "Email not verified — click the link we sent you",
+  "邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册": "Email not verified. If the confirmation link opens localhost, ask the admin to confirm the account in Supabase (or turn off Confirm email and sign up again).",
+  "该邮箱已注册，请直接登录": "This email already has an account — sign in",
+  "Supabase anon key 不正确，请检查配置": "Invalid anon key",
+  "请先在文件顶部填写 Supabase URL 与 anon key": "Fill in the Supabase URL and anon key first",
+  "网络请求失败，请检查网络或 Supabase URL": "Network request failed — check network or URL",
+  "没有权限执行该操作（被 RLS 策略拒绝）": "Not allowed (blocked by RLS)",
+  "登录状态已过期，请重新登录": "Session expired — sign in again",
+  "数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）": "Database not initialized — run the setup SQL first",
+  "数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。": "Database is not on the invite-code version yet — run fix-invite-v2.sql in Supabase SQL Editor, then reload.",
+  "请确认已执行初始化 SQL，或联系超级管理员补建档案。": "Run the setup SQL, or ask a super admin to create your profile.",
+  "该邮箱未获得邀请，请联系公司管理员在「用户管理」中邀请你": "This email has no invite — ask your company admin to invite it",
+  "账号资料不存在": "Profile missing",
+  "请填写客户姓名": "Enter the customer name",
+  "请填写商品名称": "Enter the product name",
+  "金额必须是不小于 0 的数字": "Amount must be ≥ 0",
+  "请填写公司名称": "Enter the company name",
+  "请填写姓名": "Enter your name",
+  "密码至少 6 位": "Password must be at least 6 characters",
+  "两次输入的密码不一致": "Passwords do not match",
+  "请输入邮箱和密码": "Enter email and password",
+  "邮箱格式不对，应形如 https://abcdefgh.supabase.co": "URL must look like https://abcdefgh.supabase.co",
+  "anon key 看起来不完整，请回 Project Settings → API 重新复制整串": "The anon key looks truncated — copy it again from Settings → API",
+  "保存中…": "Saving…",
+  "登录中…": "Signing in…",
+  "处理中…": "Working…",
+  "发送中…": "Sending…",
+  "生成中…": "Generating…",
+  "客服支持": "Support",
+  "联系方式与使用帮助": "Contact & help",
+  "联系客服": "Contact support",
+  "在线": "Online",
+  "管理员": "Admin",
+  "WhatsApp / 电话同号，遇到问题直接联系": "WhatsApp / phone, reach us anytime",
+  "WhatsApp 联系": "WhatsApp",
+  "拨打电话": "Call",
+  "复制号码": "Copy number",
+  "扫码联系": "Scan to contact",
+  "常见问题": "FAQ",
+  "二维码加载失败，请用下方链接": "QR failed — use the link instead",
+  "邀请码": "Invite code",
+  "邀请客服": "Invite agent",
+  "+ 邀请客服": "+ Invite agent",
+  "待使用的邀请码": "Unused invite codes",
+  "让对方扫码或输入邀请码，注册即自动加入": "Scan the QR or enter the code — signup joins the company",
+  "人员邀请": "Invites",
+  "备注（如：客服 小王）": "Note (e.g. agent name)",
+  "选填，方便你自己认人": "Optional, for your reference",
+  "有效期": "Validity",
+  "长期有效，用完自动作废": "Until used",
+  "生成邀请码": "Generate code",
+  "邀请码已生成": "Invite code ready",
+  "分享到 WhatsApp": "Share on WhatsApp",
+  "二维码 / 分享": "QR / Share",
+  "没有待使用的邀请码": "No unused invite codes",
+  "点「邀请客服」生成二维码和邀请码": "Use “Invite agent” to create a QR and code",
+  "邀请码无效或已被使用": "Invite code is invalid or already used",
+  "请输入邀请码，或联系管理员获取": "Enter an invite code, or ask the admin for one",
+  "生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。": "You will get a QR and a 6-character code — share it on WhatsApp or let them scan.",
+  "让对方扫码，或把邀请码/链接发到 WhatsApp、微信。对方注册时填这个邀请码即可自动加入公司。": "Let them scan the QR, or send the code/link on WhatsApp or WeChat. Entering the code at sign-up joins them to the company automatically.",
+  "完成": "Done",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n邀请码：{code}\n点开链接注册（会自动填好邀请码）：\n{link}\n有问题 WhatsApp 联系 {admin}：{phone}": "Hi! {c} invited you to MaxAI Portal.\nInvite code: {code}\nOpen the link to sign up (the code is prefilled):\n{link}\nAny questions? WhatsApp {admin}: {phone}",
+  "需要邀请码": "Invite code required",
+  "导出 CSV": "Export CSV",
+  "手动下单": "New order",
+  "全部动作": "All actions",
+  "订单": "Orders",
+  "用户": "Users",
+  "邀请": "Invites",
+  "记录由数据库自动写入，任何人（包括平台方）都无法修改或删除": "Written by the database — nobody (not even the platform) can edit or delete it",
+  "操作记录": "Activity log",
+  "全部角色": "All roles",
+  "未收金额": "Outstanding",
+  "逾期": "Overdue",
+  "可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单": "List products in Products, or create orders manually in Orders",
+  "商家还没有上架商品，可以直接在「订单管理」手动下单": "This shop has no products yet — you can place an order in Orders",
+  "时间": "Time",
+  "还没有操作记录": "No activity yet",
+  "有人新建、修改或删除数据后，这里会自动出现记录": "Entries appear once data is created, changed or deleted",
+  "操作人": "Actor",
+  "动作": "Action",
+  "内容": "Details",
+  "新建": "Create",
+  "修改": "Update",
+  "未知账号": "Unknown account",
+  "系统": "System",
+  "平台方没有订单数据": "The platform account has no order data",
+  "当前筛选下没有订单": "No orders match the current filter",
+  "新建订单 {no}": "Created order {no}",
+  "生成邀请码 {c}": "Generated invite {c}",
+  "新建公司「{x}」": "Created company “{x}”",
+  "新成员加入：{x}": "New member: {x}",
+  "删除订单 {no}": "Deleted order {no}",
+  "删除公司「{x}」": "Deleted company “{x}”",
+  "删除成员：{x}": "Removed member: {x}",
+  "删除邀请码 {c}": "Deleted invite {c}",
+  "更新{what}": "Updated {what}",
+  "修改{what}": "Updated {what}",
+  "（共 {n} 项）": " ({n} fields)",
+  "已导出 {n} 笔订单": "Exported {n} orders",
+  "修改密码": "Change password",
+  "改完请用新密码重新登录": "Sign in again with the new password",
+  "密码已更新": "Password updated",
+  "下单成功": "Order placed",
+  "送货地址": "Delivery address",
+  "送货日期": "Delivery date",
+  "付款方式": "Payment method",
+  "现付（货到付款）": "Cash on delivery",
+  "订单已提交，商家会尽快联系你": "Order submitted — the shop will contact you soon",
+  "查看我的订单": "View my orders",
+  "继续选购": "Keep shopping",
+  "联系卖家": "Contact the seller",
+  "你好，我想咨询你们的产品": "Hi, I would like to ask about your products",
+  "新分类（可选）": "New category (optional)",
+  "填了就新建这个分类": "Fill in to create a new category",
+  "未分类": "Uncategorised",
+  "公司名": "Company name",
+  "你的公司名（可留空）": "Your company name (optional)",
+  "第一个注册的人会用这个名称建公司，之后注册可以留空": "The first sign-up uses this name to create the company; later sign-ups can leave it blank.",
+  "第一个注册的账号自动成为公司管理员；之后注册需要邀请码，没邀请码只能当普通成员（看不到数据）。": "The first account becomes company admin automatically. Later sign-ups need an invite; without one you join as a member with no data access.",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}": "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}",
+  "批量导入": "Bulk import",
+  "批量导入商品": "Bulk import products",
+  "每行一个商品：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "One product per line: name, price, unit, category, stock, description. Price is required, the rest optional.",
+  "直接从 Excel / 微信 / 记事本复制粘贴，逗号或 Tab 分隔都行": "Paste straight from Excel, WeChat or Notepad — comma or tab separated",
+  "导入": "Import",
+  "导入中…": "Importing…",
+  "已导入 {n} 个商品": "Imported {n} products",
+  "第 {x} 行格式不对，已跳过": "Line {x} was malformed and skipped",
+  "没有可导入的行，检查一下格式（名称, 价格, ...）": "Nothing to import — check the format (name, price, ...)",
+  "选择 Excel 文件": "Choose an Excel file",
+  "支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面": "Supports .xlsx / .xls / .csv — or just paste the rows below",
+  "或粘贴文本": "Or paste text",
+  "列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Column order: name, price, unit, category, stock, description. Price required, rest optional.",
+  "正在解析…": "Reading file…",
+  "Excel 读取失败，可以直接粘贴内容": "Could not read the file — paste the rows instead",
+  "确认导入": "Confirm import",
+  "缺价格或价格不是数字": "Missing price or not a number",
+  "名称": "Name",
+  "共 {n} 行可导入": "{n} rows ready",
+  "{m} 行有问题会跳过": "{m} rows will be skipped",
+  "只预览前 20 行，共 {n} 行": "Showing the first 20 of {n} rows",
+  "没有可导入的行，检查一下格式": "Nothing to import — check the format",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
    没翻到的词会自动回落到英文 */
 const MS = {
-  '可售': 'Tersedia',
-  '在途 / 已售': 'Dalam perjalanan / terjual',
-  '调库存': 'Stok',
-  '调整库存': 'Laras stok',
-  '当前可售': 'Tersedia sekarang',
-  '调整后数量': 'Kuantiti baharu',
-  '原因': 'Sebab',
-  '补货到货 / 盘点差异 / 报损': 'Tambah stok / beza kiraan / rosak',
-  '差额会自动记一条流水，方便以后对账': 'Perbezaan direkodkan automatik untuk penyemakan',
-  '下单出库': 'Keluar pesanan',
-  '订单取消回补': 'Pesanan batal — dipulang',
-  '手动调整': 'Laras manual',
-  '补货入库': 'Tambah stok',
-  '调整': 'Laras',
-  '还没有流水记录': 'Tiada rekod pergerakan',
-  '变化': 'Perubahan',
-  '库存已更新': 'Stok dikemas kini',
-  '数量必须是不小于 0 的数字': 'Kuantiti mesti 0 atau lebih',
-  '{n} 个低库存': '{n} stok rendah',
-  '{n} 个商品库存不足 5': '{n} produk kurang daripada 5',
-  '暂无图片': 'Tiada imej',
-  '缺货': 'Kehabisan stok',
-  '还没有上架商品': 'Belum ada produk',
-  '到「商品管理」添加第一个商品': 'Tambah produk pertama di Produk',
-  '商家还没有上架商品，请联系他们': 'Kedai ini belum menyenaraikan produk',
-  '已选 {n} 件': '{n} dipilih',
-  '确认订单': 'Sahkan pesanan',
-  '商品': 'Produk',
-  '小计': 'Jumlah kecil',
-  '合计': 'Jumlah',
-  '送货要求、时间等': 'Nota penghantaran, masa, dll.',
-  '提交订单': 'Hantar pesanan',
-  '提交中…': 'Menghantar…',
-  '购物车是空的': 'Troli kosong',
-  '等 {n} 种商品': 'dan {n} lagi',
-  '下单成功，共 {v}': 'Pesanan berjaya — {v}',
-  '库存只剩 {n}': 'Tinggal {n} sahaja',
-  '图片': 'Imej',
-  '商品名': 'Nama',
-  '分类': 'Kategori',
-  '价格': 'Harga',
-  '单位': 'Unit',
-  '库存': 'Stok',
-  '已上架': 'Aktif',
-  '已下架': 'Tersembunyi',
-  '无图': 'Tiada',
-  '新增商品': 'Produk baharu',
-  '商品列表': 'Senarai produk',
-  '商品管理': 'Produk',
-  '商品菜单': 'Menu',
-  '全部分类': 'Semua kategori',
-  '搜索商品': 'Cari produk',
-  '商品图片': 'Imej produk',
-  '手机拍照或选图，自动压缩到 800px 内': 'Ambil gambar atau pilih — dimampatkan ke 800px',
-  '上架状态': 'Paparan',
-  '简介': 'Penerangan',
-  '上传中…': 'Memuat naik…',
-  '上传失败': 'Muat naik gagal',
-  '请填写商品名': 'Isi nama produk',
-  '价格必须是不小于 0 的数字': 'Harga mesti 0 atau lebih',
-  '商品已更新': 'Produk dikemas kini',
-  '商品已添加': 'Produk ditambah',
-  '商品已删除': 'Produk dipadam',
-  '删除商品': 'Padam produk',
-  '还没有商品': 'Belum ada produk',
-  '共 {n} 个': '{n} jumlah',
-  '请先选择公司': 'Pilih syarikat dahulu',
-  '下架': 'Sembunyi',
-  '上架': 'Terbit',
-  '您的公司订单平台': 'Platform pesanan syarikat anda',
-  '登录查看你的订单状态': 'Log masuk untuk melihat status pesanan anda',
-
-  '邮箱': 'E-mel',
-  '密码': 'Kata laluan',
-  '姓名': 'Nama penuh',
-  '确认密码': 'Sahkan kata laluan',
-  '再输入一次': 'Taip sekali lagi',
-  '邀请码': 'Kod jemputan',
-  '记住我': 'Ingat saya',
-  '登录': 'Log masuk',
-  '注册': 'Daftar',
-  '创建账号': 'Cipta akaun',
-  '忘记密码？': 'Lupa kata laluan?',
-  '我已阅读并同意': 'Saya telah membaca dan bersetuju dengan',
-  '和': 'dan',
-  '使用条款': 'Terma Penggunaan',
-  '隐私政策': 'Dasar Privasi',
-  '你的邮箱': 'E-mel anda',
-  '请输入密码': 'Masukkan kata laluan',
-  '登录中…': 'Sedang log masuk…',
-  '处理中…': 'Memproses…',
-  '验证码': 'Pengesahan',
-  '请填写验证码': 'Masukkan jawapan pengesahan',
-  '验证码不正确，请重试': 'Jawapan salah — cuba lagi',
-  '换一题': 'Soalan baharu',
-  '注册需要邀请码，请向管理员索取。': 'Pendaftaran memerlukan kod jemputan. Sila minta daripada pentadbir.',
-  '账号暂不可用': 'Akaun tidak tersedia buat sementara',
-  '请先阅读并同意使用条款和隐私政策': 'Sila baca dan bersetuju dengan Terma Penggunaan dan Dasar Privasi',
-  '邮箱格式不正确': 'Format e-mel tidak sah',
-  '密码至少 6 位': 'Kata laluan sekurang-kurangnya 6 aksara',
-  '两次输入的密码不一致': 'Kata laluan tidak sepadan',
-  '请填写姓名': 'Sila isi nama',
-  '请输入邮箱和密码': 'Sila isi e-mel dan kata laluan',
-
-  '仪表盘': 'Papan pemuka',
-  '订单管理': 'Pesanan',
-  '用户管理': 'Pengguna',
-  '公司管理': 'Syarikat',
-  '赊账': 'Kredit',
-  '操作记录': 'Log aktiviti',
-  '客服支持': 'Sokongan',
-  '系统配置': 'Tetapan sistem',
-
-  '新建订单': 'Pesanan baharu',
-  '邀请客服': 'Jemput ejen',
-  '刷新': 'Muat semula',
-  '重置': 'Set semula',
-  '查看全部': 'Lihat semua',
-  '订单总数': 'Jumlah pesanan',
-  '本月订单': 'Pesanan bulan ini',
-  '本月新增': 'Baharu bulan ini',
-  '待处理': 'Menunggu',
-  '需要跟进': 'Perlu diikuti',
-  '本月金额': 'Jumlah bulan ini',
-  '本月成交': 'Nilai bulan ini',
-  '最近订单': 'Pesanan terkini',
-  '近 7 天下单金额': 'Nilai pesanan 7 hari',
-  '按天统计': 'Harian',
-  '订单状态分布': 'Taburan status',
-  '还没有订单': 'Belum ada pesanan',
-  '点击右上角「+ 新建订单」录入第一笔': 'Klik "+ Pesanan baharu" di kanan atas untuk mula',
-
-  '订单号': 'No. pesanan',
-  '客户': 'Pelanggan',
-  '商品': 'Produk',
-  '数量': 'Kuantiti',
-  '金额': 'Jumlah',
-  '状态': 'Status',
-  '付款': 'Bayaran',
-  '归属公司': 'Syarikat',
-  '下单时间': 'Tarikh pesanan',
-  '操作': 'Tindakan',
-  '编辑': 'Sunting',
-  '删除': 'Padam',
-  '保存': 'Simpan',
-  '保存中…': 'Menyimpan…',
-  '取消': 'Batal',
-  '搜索客户姓名 / 商品 / 电话': 'Cari nama pelanggan / produk / telefon',
-  '全部状态': 'Semua status',
-  '全部付款': 'Semua bayaran',
-  '全部公司': 'Semua syarikat',
-  '已确认': 'Disahkan',
-  '已发货': 'Dihantar',
-  '已完成': 'Selesai',
-  '已取消': 'Dibatalkan',
-  '未付': 'Belum bayar',
-  '部分付款': 'Bayar sebahagian',
-  '已付': 'Telah bayar',
-  '未收': 'Tertunggak',
-  '已逾期': 'Lewat',
-  '付款状态': 'Status bayaran',
-  '已付金额': 'Jumlah dibayar',
-  '付款截止': 'Tarikh akhir bayaran',
-  '备注': 'Catatan',
-  '选填': 'Pilihan',
-  '联系方式': 'Nombor telefon',
-  '客户姓名': 'Nama pelanggan',
-  '商品名称': 'Nama produk',
-  '导出 CSV': 'Eksport CSV',
-  '点击「编辑」可修改订单': 'Klik "Sunting" untuk ubah pesanan',
-  '上一页': 'Sebelum',
-  '下一页': 'Seterusnya',
-  '共 {n} 条': '{n} rekod',
-  '第 {a} / {b} 页 · 共 {n} 条': 'Halaman {a} / {b} · {n} rekod',
-
-  '用户': 'Pengguna',
-  '公司': 'Syarikat',
-  '邀请': 'Jemputan',
-  '全部动作': 'Semua tindakan',
-  '时间': 'Masa',
-  '操作人': 'Pengguna',
-  '动作': 'Tindakan',
-  '内容': 'Butiran',
-  '新建': 'Cipta',
-  '修改': 'Ubah',
-  '系统': 'Sistem',
-  '未知账号': 'Akaun tidak diketahui',
-  '还没有操作记录': 'Belum ada log aktiviti',
-
-  '客户欠款': 'Baki pelanggan',
-  '未收货款': 'Belum diterima',
-  '其中逾期': 'Antaranya lewat',
-  '未收笔数': 'Pesanan terbuka',
-  '未结清的订单': 'Pesanan belum selesai',
-  '催款': 'Peringatkan',
-  '明细': 'Butiran',
-  '收起': 'Tutup',
-  '只看逾期': 'Hanya yang lewat',
-  '最早到期': 'Tarikh akhir terawal',
-  '单数': 'Pesanan',
-  '共 {n} 位客户': '{n} pelanggan',
-  '{n} 位客户': '{n} pelanggan',
-  '{n} 位客户有逾期': '{n} mempunyai tunggakan',
-  '逾期 {d} 天': 'Lewat {d} hari',
-  '{n} 笔': '{n}',
-  '没有未收货款': 'Tiada tunggakan',
-  '所有订单都付清了，或者还没有订单': 'Semua pesanan telah dibayar, atau belum ada pesanan',
-  '这位客户没有留电话': 'Pelanggan ini tiada nombor telefon',
-
-  '联系客服': 'Hubungi sokongan',
-  '在线': 'Dalam talian',
-  '复制号码': 'Salin nombor',
-  '已复制到剪贴板': 'Disalin ke papan keratan',
-  '公司名称': 'Nama syarikat',
-  '编号': 'Kod',
-  '联系人': 'Hubungan',
-  '电话': 'Telefon',
-  '角色': 'Peranan',
-  '正常': 'Aktif',
-  '已停用': 'Dinyahaktif',
-  '默认货币': 'Mata wang lalai',
-  '货币': 'Mata wang',
-  '未分配公司': 'Tiada syarikat',
-  '超级管理员': 'Pentadbir platform',
-  '公司管理员': 'Pentadbir syarikat',
-  '普通用户': 'Ahli',
-  '三步开始用': 'Mula dalam 3 langkah',
-  '去完成': 'Buat sekarang',
-  '不再提示': 'Jangan tunjuk lagi',
-  '开启新订单提醒': 'Aktifkan makluman pesanan',
-  '新订单': 'Pesanan baharu'
+  "可售": "Tersedia",
+  "在途 / 已售": "Dalam perjalanan / terjual",
+  "调库存": "Stok",
+  "调整库存": "Laras stok",
+  "当前可售": "Tersedia sekarang",
+  "调整后数量": "Kuantiti baharu",
+  "原因": "Sebab",
+  "补货到货 / 盘点差异 / 报损": "Tambah stok / beza kiraan / rosak",
+  "差额会自动记一条流水，方便以后对账": "Perbezaan direkodkan automatik untuk penyemakan",
+  "下单出库": "Keluar pesanan",
+  "订单取消回补": "Pesanan batal — dipulang",
+  "手动调整": "Laras manual",
+  "补货入库": "Tambah stok",
+  "调整": "Laras",
+  "还没有流水记录": "Tiada rekod pergerakan",
+  "变化": "Perubahan",
+  "库存已更新": "Stok dikemas kini",
+  "数量必须是不小于 0 的数字": "Kuantiti mesti 0 atau lebih",
+  "{n} 个低库存": "{n} stok rendah",
+  "{n} 个商品库存不足 5": "{n} produk kurang daripada 5",
+  "暂无图片": "Tiada imej",
+  "缺货": "Kehabisan stok",
+  "还没有上架商品": "Belum ada produk",
+  "到「商品管理」添加第一个商品": "Tambah produk pertama di Produk",
+  "商家还没有上架商品，请联系他们": "Kedai ini belum menyenaraikan produk",
+  "已选 {n} 件": "{n} dipilih",
+  "确认订单": "Sahkan pesanan",
+  "商品": "Produk",
+  "小计": "Jumlah kecil",
+  "合计": "Jumlah",
+  "送货要求、时间等": "Nota penghantaran, masa, dll.",
+  "提交订单": "Hantar pesanan",
+  "提交中…": "Menghantar…",
+  "购物车是空的": "Troli kosong",
+  "等 {n} 种商品": "dan {n} lagi",
+  "下单成功，共 {v}": "Pesanan berjaya — {v}",
+  "库存只剩 {n}": "Tinggal {n} sahaja",
+  "图片": "Imej",
+  "商品名": "Nama",
+  "分类": "Kategori",
+  "价格": "Harga",
+  "单位": "Unit",
+  "库存": "Stok",
+  "已上架": "Aktif",
+  "已下架": "Tersembunyi",
+  "无图": "Tiada",
+  "新增商品": "Produk baharu",
+  "商品列表": "Senarai produk",
+  "商品管理": "Produk",
+  "商品菜单": "Menu",
+  "全部分类": "Semua kategori",
+  "搜索商品": "Cari produk",
+  "商品图片": "Imej produk",
+  "手机拍照或选图，自动压缩到 800px 内": "Ambil gambar atau pilih — dimampatkan ke 800px",
+  "上架状态": "Paparan",
+  "简介": "Penerangan",
+  "上传中…": "Memuat naik…",
+  "上传失败": "Muat naik gagal",
+  "请填写商品名": "Isi nama produk",
+  "价格必须是不小于 0 的数字": "Harga mesti 0 atau lebih",
+  "商品已更新": "Produk dikemas kini",
+  "商品已添加": "Produk ditambah",
+  "商品已删除": "Produk dipadam",
+  "删除商品": "Padam produk",
+  "还没有商品": "Belum ada produk",
+  "共 {n} 个": "{n} jumlah",
+  "请先选择公司": "Pilih syarikat dahulu",
+  "下架": "Sembunyi",
+  "上架": "Terbit",
+  "您的公司订单平台": "Platform pesanan syarikat anda",
+  "登录查看你的订单状态": "Log masuk untuk melihat status pesanan anda",
+  "邮箱": "E-mel",
+  "密码": "Kata laluan",
+  "姓名": "Nama penuh",
+  "确认密码": "Sahkan kata laluan",
+  "再输入一次": "Taip sekali lagi",
+  "邀请码": "Kod jemputan",
+  "记住我": "Ingat saya",
+  "登录": "Log masuk",
+  "注册": "Daftar",
+  "创建账号": "Cipta akaun",
+  "忘记密码？": "Lupa kata laluan?",
+  "我已阅读并同意": "Saya telah membaca dan bersetuju dengan",
+  "和": "dan",
+  "使用条款": "Terma Penggunaan",
+  "隐私政策": "Dasar Privasi",
+  "你的邮箱": "E-mel anda",
+  "请输入密码": "Masukkan kata laluan",
+  "登录中…": "Sedang log masuk…",
+  "处理中…": "Memproses…",
+  "验证码": "Pengesahan",
+  "请填写验证码": "Masukkan jawapan pengesahan",
+  "验证码不正确，请重试": "Jawapan salah — cuba lagi",
+  "换一题": "Soalan baharu",
+  "注册需要邀请码，请向管理员索取。": "Pendaftaran memerlukan kod jemputan. Sila minta daripada pentadbir.",
+  "账号暂不可用": "Akaun tidak tersedia buat sementara",
+  "请先阅读并同意使用条款和隐私政策": "Sila baca dan bersetuju dengan Terma Penggunaan dan Dasar Privasi",
+  "邮箱格式不正确": "Format e-mel tidak sah",
+  "密码至少 6 位": "Kata laluan sekurang-kurangnya 6 aksara",
+  "两次输入的密码不一致": "Kata laluan tidak sepadan",
+  "请填写姓名": "Sila isi nama",
+  "请输入邮箱和密码": "Sila isi e-mel dan kata laluan",
+  "仪表盘": "Papan pemuka",
+  "订单管理": "Pesanan",
+  "用户管理": "Pengguna",
+  "公司管理": "Syarikat",
+  "赊账": "Kredit",
+  "操作记录": "Log aktiviti",
+  "客服支持": "Sokongan",
+  "系统配置": "Tetapan sistem",
+  "新建订单": "Pesanan baharu",
+  "邀请客服": "Jemput ejen",
+  "刷新": "Muat semula",
+  "重置": "Set semula",
+  "查看全部": "Lihat semua",
+  "订单总数": "Jumlah pesanan",
+  "本月订单": "Pesanan bulan ini",
+  "本月新增": "Baharu bulan ini",
+  "待处理": "Menunggu",
+  "需要跟进": "Perlu diikuti",
+  "本月金额": "Jumlah bulan ini",
+  "本月成交": "Nilai bulan ini",
+  "最近订单": "Pesanan terkini",
+  "近 7 天下单金额": "Nilai pesanan 7 hari",
+  "按天统计": "Harian",
+  "订单状态分布": "Taburan status",
+  "还没有订单": "Belum ada pesanan",
+  "点击右上角「+ 新建订单」录入第一笔": "Klik \"+ Pesanan baharu\" di kanan atas untuk mula",
+  "订单号": "No. pesanan",
+  "客户": "Pelanggan",
+  "数量": "Kuantiti",
+  "金额": "Jumlah",
+  "状态": "Status",
+  "付款": "Bayaran",
+  "归属公司": "Syarikat",
+  "下单时间": "Tarikh pesanan",
+  "操作": "Tindakan",
+  "编辑": "Sunting",
+  "删除": "Padam",
+  "保存": "Simpan",
+  "保存中…": "Menyimpan…",
+  "取消": "Batal",
+  "搜索客户姓名 / 商品 / 电话": "Cari nama pelanggan / produk / telefon",
+  "全部状态": "Semua status",
+  "全部付款": "Semua bayaran",
+  "全部公司": "Semua syarikat",
+  "已确认": "Disahkan",
+  "已发货": "Dihantar",
+  "已完成": "Selesai",
+  "已取消": "Dibatalkan",
+  "未付": "Belum bayar",
+  "部分付款": "Bayar sebahagian",
+  "已付": "Telah bayar",
+  "未收": "Tertunggak",
+  "已逾期": "Lewat",
+  "付款状态": "Status bayaran",
+  "已付金额": "Jumlah dibayar",
+  "付款截止": "Tarikh akhir bayaran",
+  "备注": "Catatan",
+  "选填": "Pilihan",
+  "联系方式": "Nombor telefon",
+  "客户姓名": "Nama pelanggan",
+  "商品名称": "Nama produk",
+  "导出 CSV": "Eksport CSV",
+  "点击「编辑」可修改订单": "Klik \"Sunting\" untuk ubah pesanan",
+  "上一页": "Sebelum",
+  "下一页": "Seterusnya",
+  "共 {n} 条": "{n} rekod",
+  "第 {a} / {b} 页 · 共 {n} 条": "Halaman {a} / {b} · {n} rekod",
+  "用户": "Pengguna",
+  "公司": "Syarikat",
+  "邀请": "Jemputan",
+  "全部动作": "Semua tindakan",
+  "时间": "Masa",
+  "操作人": "Pengguna",
+  "动作": "Tindakan",
+  "内容": "Butiran",
+  "新建": "Cipta",
+  "修改": "Ubah",
+  "系统": "Sistem",
+  "未知账号": "Akaun tidak diketahui",
+  "还没有操作记录": "Belum ada log aktiviti",
+  "客户欠款": "Baki pelanggan",
+  "未收货款": "Belum diterima",
+  "其中逾期": "Antaranya lewat",
+  "未收笔数": "Pesanan terbuka",
+  "未结清的订单": "Pesanan belum selesai",
+  "催款": "Peringatkan",
+  "明细": "Butiran",
+  "收起": "Tutup",
+  "只看逾期": "Hanya yang lewat",
+  "最早到期": "Tarikh akhir terawal",
+  "单数": "Pesanan",
+  "共 {n} 位客户": "{n} pelanggan",
+  "{n} 位客户": "{n} pelanggan",
+  "{n} 位客户有逾期": "{n} mempunyai tunggakan",
+  "逾期 {d} 天": "Lewat {d} hari",
+  "{n} 笔": "{n}",
+  "没有未收货款": "Tiada tunggakan",
+  "所有订单都付清了，或者还没有订单": "Semua pesanan telah dibayar, atau belum ada pesanan",
+  "这位客户没有留电话": "Pelanggan ini tiada nombor telefon",
+  "联系客服": "Hubungi sokongan",
+  "在线": "Dalam talian",
+  "复制号码": "Salin nombor",
+  "已复制到剪贴板": "Disalin ke papan keratan",
+  "公司名称": "Nama syarikat",
+  "编号": "Kod",
+  "联系人": "Hubungan",
+  "电话": "Telefon",
+  "角色": "Peranan",
+  "正常": "Aktif",
+  "已停用": "Dinyahaktif",
+  "默认货币": "Mata wang lalai",
+  "货币": "Mata wang",
+  "未分配公司": "Tiada syarikat",
+  "超级管理员": "Pentadbir platform",
+  "公司管理员": "Pentadbir syarikat",
+  "普通用户": "Ahli",
+  "三步开始用": "Mula dalam 3 langkah",
+  "去完成": "Buat sekarang",
+  "不再提示": "Jangan tunjuk lagi",
+  "开启新订单提醒": "Aktifkan makluman pesanan",
+  "新订单": "Pesanan baharu",
+  "将永久删除「{x}」，已生成的订单明细不受影响。": "Akan memadam \"{x}\" secara kekal. Baris pesanan sedia ada tidak terjejas.",
+  "点右上角「+ 新增商品」上架第一个": "Guna \"+ Produk baharu\" untuk menyenaraikan yang pertama",
+  "全平台业务概览": "Gambaran keseluruhan platform",
+  "本公司业务概览": "Gambaran perniagaan syarikat",
+  "查看并管理所有公司的订单": "Lihat dan urus pesanan semua syarikat",
+  "查看并管理本公司订单": "Lihat dan urus pesanan syarikat anda",
+  "管理全部账号、角色与公司归属": "Urus akaun, peranan dan syarikat",
+  "管理本公司成员与角色": "Urus ahli dan peranan syarikat",
+  "新增、编辑、停用公司": "Tambah, sunting dan nyahaktif syarikat",
+  "Supabase 连接状态与数据库初始化脚本": "Status sambungan Supabase dan skrip pangkalan data",
+  "谁欠多少、哪笔逾期了": "Siapa berhutang dan apa yang lewat",
+  "已付金额不能大于订单金额": "Jumlah dibayar tidak boleh melebihi jumlah pesanan",
+  "部分付款：已付金额要大于 0 且小于订单金额": "Bayar sebahagian: jumlah mesti lebih 0 dan kurang daripada jumlah pesanan",
+  "按客户汇总未收货款；金额来自「金额 − 已付」，逾期按付款截止日判断": "Tunggakan mengikut pelanggan — jumlah tolak bayaran, lewat ikut tarikh akhir",
+  "你好 {name}，你目前在我们这里有 {n} 笔订单未结清，合计 {amt}{od}。方便的话请安排付款，谢谢！": "Hai {name}, anda mempunyai {n} pesanan belum selesai berjumlah {amt}{od}. Sila buat pembayaran, terima kasih!",
+  "（其中 {k} 笔已逾期）": " ({k} lewat)",
+  "密码连错 {n} 次，已临时锁定，请 {m} 分 {s} 秒后再试": "Terlalu banyak percubaan ({n}). Dikunci — cuba lagi dalam {m}m {s}s.",
+  "（还可尝试 {n} 次，超过将锁定 15 分钟）": "({n} cubaan lagi sebelum dikunci 15 minit)",
+  "跟着走完这三步，你的团队就能正常接单了": "Selesaikan langkah ini dan pasukan anda boleh mula menerima pesanan.",
+  "建第一家公司": "Cipta syarikat pertama",
+  "公司管理 → 新建公司，填名称和默认货币": "Syarikat → Syarikat baharu: nama dan mata wang lalai",
+  "生成第一个邀请码": "Jana jemputan pertama",
+  "用户管理 → 邀请客服，把二维码或邀请码发给对方": "Pengguna → Jemput ejen: hantar kod atau QR",
+  "等对方注册后登录看看": "Tunggu mereka mendaftar",
+  "用他注册的邮箱能登录，说明租户开通成功": "Jika e-mel mereka boleh log masuk, penyewa sudah aktif",
+  "邀请第一个客服": "Jemput ejen pertama",
+  "用户管理 → 邀请客服，发二维码或邀请码给他": "Pengguna → Jemput ejen: hantar kod atau QR",
+  "下第一笔订单": "Cipta pesanan pertama",
+  "订单管理 → 新建订单，金额会自动带公司货币": "Pesanan → Pesanan baharu: jumlah ikut mata wang syarikat",
+  "把订单标记为已发货": "Tandakan pesanan sebagai dihantar",
+  "熟悉一下状态流转：待处理 → 已确认 → 已发货": "Kenali aliran: Menunggu → Disahkan → Dihantar",
+  "录第一笔订单": "Rekod pesanan pertama",
+  "订单管理 → 新建订单，填客户和商品即可": "Pesanan → Pesanan baharu: pelanggan dan produk sahaja",
+  "等管理员确认": "Tunggu pengesahan pentadbir",
+  "订单确认后状态会变成「已确认」": "Selepas disahkan status menjadi \"Disahkan\"",
+  "新订单提醒已开启（页面开着时生效）": "Makluman pesanan aktif — berfungsi semasa halaman dibuka",
+  "新订单提醒未开启：开启后有人下单，浏览器会弹通知": "Makluman pesanan mati — aktifkan untuk notifikasi pelayar",
+  "这几天还没有下单记录": "Tiada pesanan dalam beberapa hari ini",
+  "下第一笔订单，这里就会出图": "Cipta pesanan pertama dan carta akan muncul",
+  "已开启：有人下单会在浏览器弹提醒": "Diaktifkan — anda akan menerima notifikasi",
+  "没有拿到通知权限，可以在浏览器地址栏的锁形图标里手动允许": "Kebenaran tidak diberi — benarkan melalui ikon mangga di bar alamat",
+  "这个浏览器不支持桌面通知": "Pelayar ini tidak menyokong notifikasi desktop",
+  "平台控制台": "Konsol platform",
+  "只管理公司与账号，不看各公司订单数据": "Urus syarikat dan akaun sahaja — tanpa data pesanan penyewa",
+  "已开通租户": "Penyewa aktif",
+  "平台账号": "Akaun",
+  "待接受邀请": "Jemputan menunggu",
+  "邀请码未使用": "Kod belum digunakan",
+  "平台不展示各公司订单": "Pesanan penyewa tidak dipaparkan",
+  "订单数据属于各公司自己，平台方无权查看。需要处理订单请登录对应公司的账号。": "Pesanan milik setiap syarikat. Pemilik platform tiada akses — log masuk dengan akaun syarikat.",
+  "订单数据": "Data pesanan",
+  "已隔离": "Terasing",
+  "没有邀请码？": "Tiada kod jemputan?",
+  "注册需要邀请码。没有邀请码？点上面的 WhatsApp 联系管理员。": "Pendaftaran memerlukan kod. Tiada kod? Hubungi pentadbir melalui WhatsApp.",
+  "退出登录": "Log keluar",
+  "你的姓名": "Nama anda",
+  "至少 6 位": "Sekurang-kurangnya 6 aksara",
+  "登录状态已过期，请重新登录": "Sesi tamat — sila log masuk semula",
+  "邮箱或密码不正确": "E-mel atau kata laluan tidak betul",
+  "该邮箱已注册，请直接登录": "E-mel ini sudah didaftarkan — sila log masuk",
+  "网络请求失败，请检查网络或 Supabase URL": "Rangkaian gagal — semak sambungan atau URL Supabase",
+  "请填写客户姓名": "Sila isi nama pelanggan",
+  "请填写商品名称": "Sila isi nama produk",
+  "请填写公司名称": "Sila isi nama syarikat",
+  "金额必须是不小于 0 的数字": "Jumlah mesti 0 atau lebih",
+  "确定": "OK",
+  "停用": "Nyahaktif",
+  "启用": "Aktifkan",
+  "撤销": "Batal",
+  "复制": "Salin",
+  "复制链接": "Salin pautan",
+  "复制文案": "Salin teks",
+  "取消操作": "Batal",
+  "未分配": "Belum ditetapkan",
+  "未填写": "Belum diisi",
+  "我": "Saya",
+  "成员": "Ahli",
+  "所属公司": "Syarikat",
+  "加入时间": "Tarikh sertai",
+  "邀请时间": "Tarikh jemput",
+  "创建时间": "Tarikh cipta",
+  "订单列表": "Senarai pesanan",
+  "公司成员": "Ahli syarikat",
+  "待接受的邀请": "Jemputan menunggu",
+  "复制链接发给对方，用该邮箱注册即自动加入": "Hantar pautan — daftar dengan e-mel itu untuk menyertai",
+  "搜索姓名 / 邮箱": "Cari nama / e-mel",
+  "搜索公司名称 / 编号": "Cari nama / kod syarikat",
+  "邀请用户": "Jemput pengguna",
+  "+ 邀请用户": "+ Jemput pengguna",
+  "新建公司": "Syarikat baharu",
+  "编辑订单": "Sunting pesanan",
+  "编辑公司": "Sunting syarikat",
+  "共 {n} 人": "{n} ahli",
+  "共 {n} 家": "{n} syarikat",
+  "共 {n} 单": "{n} pesanan",
+  "没有符合条件的订单": "Tiada pesanan sepadan",
+  "换个筛选条件，或点击「+ 新建订单」录入": "Cuba penapis lain atau cipta pesanan baharu",
+  "暂无成员": "Tiada ahli",
+  "点击「+ 邀请用户」把成员拉进来": "Guna \"+ Jemput pengguna\" untuk menambah ahli",
+  "没有待接受的邀请": "Tiada jemputan menunggu",
+  "邀请发出后，对方用该邮箱注册即自动加入": "Selepas dihantar, daftar dengan e-mel itu untuk menyertai",
+  "还没有公司": "Belum ada syarikat",
+  "点击「+ 新建公司」创建第一家": "Guna \"+ Syarikat baharu\" untuk yang pertama",
+  "凌晨好": "Selamat malam",
+  "上午好": "Selamat pagi",
+  "中午好": "Selamat tengah hari",
+  "下午好": "Selamat petang",
+  "晚上好": "Selamat malam",
+  "全平台数据": "Data seluruh platform",
+  "全平台订单": "Pesanan platform",
+  "累计 {v}": "Jumlah {v}",
+  "{n} 家公司 · {m} 位用户": "{n} syarikat · {m} pengguna",
+  "确定要退出当前账号吗？": "Log keluar sekarang?",
+  "删除订单": "Padam pesanan",
+  "确定删除订单「{x}」吗？删除后无法恢复。": "Padam pesanan \"{x}\"? Tindakan ini kekal.",
+  "订单已删除": "Pesanan dipadam",
+  "订单已更新": "Pesanan dikemas kini",
+  "订单已创建": "Pesanan dicipta",
+  "修改角色": "Tukar peranan",
+  "停用账号": "Nyahaktif akaun",
+  "启用账号": "Aktifkan akaun",
+  "账号已停用": "Akaun dinyahaktif",
+  "账号已启用": "Akaun diaktifkan",
+  "调整所属公司": "Tukar syarikat",
+  "所属公司已更新": "Syarikat dikemas kini",
+  "删除成员": "Padam ahli",
+  "确认删除": "Sahkan padam",
+  "成员已删除": "Ahli dipadam",
+  "撤销邀请": "Batal jemputan",
+  "邀请已撤销": "Jemputan dibatalkan",
+  "删除公司": "Padam syarikat",
+  "公司已删除": "Syarikat dipadam",
+  "公司已更新": "Syarikat dikemas kini",
+  "公司已创建": "Syarikat dicipta",
+  "成员邮箱": "E-mel ahli",
+  "加入公司": "Sertai syarikat",
+  "发送邀请": "Hantar jemputan",
+  "邀请已创建": "Jemputan dicipta",
+  "邀请链接": "Pautan jemputan",
+  "发给对方的话术": "Mesej untuk dihantar",
+  "邀请 · {e}": "Jemputan · {e}",
+  "该邮箱已经是系统成员": "E-mel ini sudah menjadi ahli",
+  "该邮箱已有一条待接受的邀请": "Sudah ada jemputan menunggu untuk e-mel ini",
+  "请选择公司": "Sila pilih syarikat",
+  "登录账号": "Akaun log masuk",
+  "未登录": "Belum log masuk",
+  "联系方式与使用帮助": "Hubungi kami dan bantuan",
+  "管理员": "Pentadbir",
+  "WhatsApp 联系": "Hubungi WhatsApp",
+  "拨打电话": "Panggil",
+  "扫码联系": "Imbas untuk hubungi",
+  "常见问题": "Soalan lazim",
+  "二维码加载失败，请用下方链接": "QR gagal dimuatkan — guna pautan di bawah",
+  "最后更新：2026-11 · 如需纸质版本或提出异议，请联系你所在公司的管理员": "Dikemas kini: Nov 2026 · Untuk salinan kertas, hubungi pentadbir syarikat anda",
+  "修改密码": "Tukar kata laluan",
+  "新密码": "Kata laluan baharu",
+  "改完请用新密码重新登录": "Log masuk semula dengan kata laluan baharu",
+  "密码已更新": "Kata laluan dikemas kini",
+  "WhatsApp 联系管理员": "Hubungi pentadbir melalui WhatsApp",
+  "管理员：建表 SQL / 配置说明": "Pentadbir: SQL / konfigurasi",
+  "管理员说明": "Nota pentadbir",
+  "重置密码": "Set semula kata laluan",
+  "输入注册时用的邮箱，我们会发一封重置密码的邮件给你。": "Masukkan e-mel pendaftaran anda — kami akan hantar e-mel set semula.",
+  "发送重置邮件": "Hantar e-mel",
+  "如果该邮箱已注册，重置邮件已发送，请查收（含垃圾箱）": "Jika e-mel berdaftar, e-mel set semula telah dihantar (semak spam).",
+  "设置新密码": "Tetapkan kata laluan baharu",
+  "请输入新密码（至少 6 位）。": "Masukkan kata laluan baharu (sekurang-kurangnya 6 aksara).",
+  "稍后": "Nanti",
+  "保存新密码": "Simpan kata laluan",
+  "密码已更新，请用新密码登录": "Kata laluan dikemas kini — sila log masuk",
+  "我知道了": "Faham",
+  "不放在网页里": "Tidak diletakkan dalam halaman",
+  "为了防止访客看到表结构和权限策略，初始化 SQL 不再写进这个网页。请在部署包里的 supabase-schema.sql 文件中打开，整段复制到 Supabase → SQL Editor 执行。": "SQL tidak lagi disimpan dalam halaman ini. Buka supabase-schema.sql dalam pakej dan tampal ke Supabase → SQL Editor.",
+  "保存并连接": "Simpan dan sambung",
+  "连接 Supabase": "Sambung Supabase",
+  "本站还没连接数据库": "Laman ini belum disambung ke pangkalan data",
+  "页面已经打开，但管理员还没把数据库连接写进这个网页，所以暂时无法登录或注册。请联系管理员完成配置。": "Halaman dibuka tetapi sambungan pangkalan data belum dikonfigurasi. Hubungi pentadbir.",
+  "（如果你是管理员：请把 Project URL 和 anon key 写进文件顶部的两个常量，再重新上传到 GitHub Pages）": "(Jika anda pentadbir: letak Project URL dan anon key dalam dua pemalar di atas fail, kemudian muat naik semula.)",
+  "我是管理员，就在这里填": "Saya pentadbir — isi di sini",
+  "只需填一次": "Isi sekali sahaja",
+  "在 Supabase 项目里打开 Project Settings → API，复制下面两项粘进来：": "Buka Project Settings → API di Supabase dan tampal dua nilai ini:",
+  "只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。": "Disimpan dalam pelayar ini sahaja. Untuk penggunaan berterusan, letak dalam pemalar fail.",
+  "查看建表 SQL / 配置说明": "Lihat SQL / konfigurasi",
+  "连接填错了？重新填写": "Sambungan salah? Isi semula",
+  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。": "Pendaftaran memerlukan jemputan. Jika belum ada pengguna, akaun pertama menjadi pentadbir platform.",
+  "首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。": "Inisialisasi pertama: akaun pertama yang mendaftar akan menjadi pentadbir platform.",
+  "注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。": "Pendaftaran memerlukan jemputan: minta pentadbir syarikat menjemput e-mel anda dahulu.",
+  "复制失败，请手动选中复制": "Salinan gagal — pilih dan salin secara manual",
+  "+ 新建公司": "+ Syarikat baharu",
+  "金额（元）": "Jumlah",
+  "将「{x}」的角色改为「{r}」？": "Tukar peranan \"{x}\" kepada \"{r}\"?",
+  "角色已更新": "Peranan dikemas kini",
+  "停用后「{x}」将无法登录，历史数据会保留。": "Selepas dinyahaktif, \"{x}\" tidak boleh log masuk. Data lama dikekalkan.",
+  "恢复「{x}」的登录权限？": "Pulihkan akses log masuk \"{x}\"?",
+  "将「{x}」调整到「{c}」？调整后只能看到新公司的数据。": "Pindahkan \"{x}\" ke \"{c}\"? Selepas itu hanya data syarikat baharu kelihatan.",
+  "将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。此操作不可恢复，建议优先使用「停用」。": "Profil \"{x}\" akan dipadam dan tidak boleh digunakan lagi. Tindakan kekal — gunakan \"Nyahaktif\" jika boleh.",
+  "撤销后该邮箱将无法通过此邀请注册。": "Selepas dibatalkan, e-mel ini tidak boleh mendaftar dengan jemputan ini.",
+  "将永久删除「{x}」及其名下全部订单，该公司用户会变成「未分配公司」。此操作不可恢复。": "Akan memadam \"{x}\" dan semua pesanannya secara kekal. Tindakan ini tidak boleh dibatalkan.",
+  "删除订单失败": "Gagal memadam pesanan",
+  "请输入 {x} 以确认：": "Taip {x} untuk mengesahkan:",
+  "对方打开本系统 → 注册 → 使用该邮箱创建账号，系统会自动写入角色与公司。": "Mereka membuka sistem → daftar → peranan dan syarikat ditetapkan automatik.",
+  "系统不会自动发邮件（纯前端无法调用邮件服务）。把上面两段复制到微信 / 邮箱发给对方即可。": "Sistem tidak menghantar e-mel sendiri. Salin teks di atas ke WeChat / e-mel.",
+  "连接状态": "Status sambungan",
+  "已配置": "Dikonfigurasi",
+  "待配置": "Belum dikonfigurasi",
+  "配置来源": "Sumber konfigurasi",
+  "文件常量": "Pemalar fail",
+  "浏览器本地": "Pelayar tempatan",
+  "未配置": "Belum dikonfigurasi",
+  "重新填写连接配置": "Isi semula konfigurasi",
+  "复制配置代码（贴进文件顶部）": "Salin kod konfigurasi",
+  "你的连接配置只存在这台电脑的浏览器里。要让别人打开页面就能用，点上面的「复制配置代码」，粘贴到文件顶部两个常量处，再重新上传到 GitHub Pages。": "Konfigurasi hanya wujud dalam pelayar ini. Untuk orang lain guna, salin kod dan tampal ke dua pemalar di atas fail.",
+  "打开 Supabase 后台": "Buka papan pemuka Supabase",
+  "上线四步": "Empat langkah untuk terbit",
+  "数据库初始化 SQL": "SQL inisialisasi pangkalan data",
+  "复制 SQL": "Salin SQL",
+  "初始化 SQL 已复制": "SQL disalin",
+  "打开 Supabase": "Buka Supabase",
+  "权限与数据隔离说明": "Kebenaran dan pengasingan data",
+  "邀请 / 邮件常见问题": "Soalan lazim: jemputan / e-mel",
+  "邀请 / 二维码常见问题": "Soalan lazim: jemputan / QR",
+  "账号没有分配公司时看不到数据，超级管理员可在「用户管理」里直接改所属公司。": "Akaun tanpa syarikat tidak nampak data. Pentadbir boleh tetapkan syarikat dalam Pengguna.",
+  "浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量": "Storan pelayar disekat (mungkin mod inkognito) — guna pemalar fail.",
+  "邮箱还未验证，请先到邮箱点击确认链接": "E-mel belum disahkan — klik pautan pengesahan dalam e-mel.",
+  "邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册": "E-mel belum disahkan. Jika pautan pergi ke localhost, minta pentadbir mengesahkan akaun di Supabase.",
+  "Supabase anon key 不正确，请检查配置": "Anon key Supabase tidak betul — semak konfigurasi.",
+  "请先在文件顶部填写 Supabase URL 与 anon key": "Sila isi Supabase URL dan anon key di atas fail.",
+  "没有权限执行该操作（被 RLS 策略拒绝）": "Tiada kebenaran (ditolak oleh polisi RLS).",
+  "数据库尚未初始化，请先执行初始化 SQL（见「系统配置」）": "Pangkalan data belum diinisialisasi — jalankan SQL (lihat Tetapan sistem).",
+  "数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。": "Pangkalan data belum dikemas kini — jalankan fix-invite-v2.sql kemudian muat semula.",
+  "请确认已执行初始化 SQL，或联系超级管理员补建档案。": "Pastikan SQL telah dijalankan atau hubungi pentadbir platform.",
+  "该邮箱未获得邀请，请联系公司管理员在「用户管理」中邀请你": "E-mel ini belum dijemput — minta pentadbir syarikat menjemput anda.",
+  "账号资料不存在": "Profil akaun tiada",
+  "邮箱格式不对，应形如 https://abcdefgh.supabase.co": "Format URL salah — sepatutnya seperti https://abcdefgh.supabase.co",
+  "anon key 看起来不完整，请回 Project Settings → API 重新复制整串": "Anon key nampak tidak lengkap — salin semula dari Project Settings → API.",
+  "发送中…": "Menghantar…",
+  "生成中…": "Menjana…",
+  "WhatsApp / 电话同号，遇到问题直接联系": "WhatsApp dan telefon sama — hubungi terus jika ada masalah",
+  "+ 邀请客服": "+ Jemput ejen",
+  "待使用的邀请码": "Kod jemputan belum digunakan",
+  "让对方扫码或输入邀请码，注册即自动加入": "Minta mereka imbas atau masukkan kod untuk menyertai",
+  "人员邀请": "Jemputan ahli",
+  "备注（如：客服 小王）": "Catatan (cth: ejen Ali)",
+  "选填，方便你自己认人": "Pilihan — untuk mengenali mereka",
+  "有效期": "Tempoh sah",
+  "长期有效，用完自动作废": "Sah sehingga digunakan",
+  "生成邀请码": "Jana kod",
+  "邀请码已生成": "Kod dijana",
+  "分享到 WhatsApp": "Kongsi ke WhatsApp",
+  "二维码 / 分享": "QR / Kongsi",
+  "没有待使用的邀请码": "Tiada kod belum digunakan",
+  "点「邀请客服」生成二维码和邀请码": "Guna \"Jemput ejen\" untuk jana QR dan kod",
+  "邀请码无效或已被使用": "Kod tidak sah atau sudah digunakan",
+  "请输入邀请码，或联系管理员获取": "Masukkan kod jemputan atau hubungi pentadbir",
+  "生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。": "Anda akan dapat QR dan kod 6 aksara — kongsi di WhatsApp.",
+  "让对方扫码，或把邀请码/链接发到 WhatsApp、微信。对方注册时填这个邀请码即可自动加入公司。": "Minta mereka imbas QR atau hantar kod. Memasukkannya semasa daftar menyertai syarikat secara automatik.",
+  "完成": "Selesai",
+  "需要邀请码": "Kod jemputan diperlukan",
+  "手动下单": "Pesanan manual",
+  "订单": "Pesanan",
+  "记录由数据库自动写入，任何人（包括平台方）都无法修改或删除": "Ditulis oleh pangkalan data — tiada sesiapa boleh ubah atau padam",
+  "全部角色": "Semua peranan",
+  "未收金额": "Tertunggak",
+  "逾期": "Lewat",
+  "可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单": "Senaraikan produk di Produk, atau cipta pesanan manual di Pesanan",
+  "商家还没有上架商品，可以直接在「订单管理」手动下单": "Kedai ini belum ada produk — anda boleh buat pesanan manual",
+  "有人新建、修改或删除数据后，这里会自动出现记录": "Rekod muncul selepas data dicipta, diubah atau dipadam",
+  "平台方没有订单数据": "Akaun platform tiada data pesanan",
+  "当前筛选下没有订单": "Tiada pesanan sepadan dengan penapis",
+  "新建订单 {no}": "Cipta pesanan {no}",
+  "生成邀请码 {c}": "Jana kod {c}",
+  "新建公司「{x}」": "Cipta syarikat \"{x}\"",
+  "新成员加入：{x}": "Ahli baharu: {x}",
+  "删除订单 {no}": "Padam pesanan {no}",
+  "删除公司「{x}」": "Padam syarikat \"{x}\"",
+  "删除成员：{x}": "Padam ahli: {x}",
+  "删除邀请码 {c}": "Padam kod {c}",
+  "更新{what}": "Kemas kini {what}",
+  "修改{what}": "Ubah {what}",
+  "（共 {n} 项）": " ({n} medan)",
+  "已导出 {n} 笔订单": "{n} pesanan dieksport",
+  "下单成功": "Pesanan dihantar",
+  "送货地址": "Alamat penghantaran",
+  "送货日期": "Tarikh penghantaran",
+  "付款方式": "Kaedah bayaran",
+  "现付（货到付款）": "Bayar semasa terima",
+  "订单已提交，商家会尽快联系你": "Pesanan dihantar — kedai akan hubungi anda",
+  "查看我的订单": "Lihat pesanan saya",
+  "继续选购": "Terus beli",
+  "联系卖家": "Hubungi penjual",
+  "你好，我想咨询你们的产品": "Hai, saya ingin bertanya tentang produk anda",
+  "新分类（可选）": "Kategori baharu (pilihan)",
+  "填了就新建这个分类": "Isi untuk cipta kategori baharu",
+  "未分类": "Tanpa kategori",
+  "公司名": "Nama syarikat",
+  "你的公司名（可留空）": "Nama syarikat anda (pilihan)",
+  "第一个注册的人会用这个名称建公司，之后注册可以留空": "Pendaftaran pertama menggunakan nama ini untuk mencipta syarikat; pendaftaran seterusnya boleh biarkan kosong.",
+  "第一个注册的账号自动成为公司管理员；之后注册需要邀请码，没邀请码只能当普通成员（看不到数据）。": "Akaun pertama menjadi pentadbir syarikat secara automatik. Pendaftaran seterusnya memerlukan kod jemputan; tanpanya anda menjadi ahli biasa tanpa akses data.",
+  "WhatsApp 联系 Max Dee": "WhatsApp Max Dee",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n请用邮箱 {e} 注册（点开链接会自动填好）：\n{link}": "Hi! {c} invited you to MaxAI Portal.\nSign up with {e} (the link prefills it):\n{link}",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n邀请码：{code}\n点开链接注册（会自动填好邀请码）：\n{link}\n有问题 WhatsApp 联系 {admin}：{phone}": "Hi! {c} invited you to MaxAI Portal.\nInvite code: {code}\nOpen the link to sign up (the code is prefilled):\n{link}\nAny questions? WhatsApp {admin}: {phone}",
+  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}": "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}",
+  "批量导入": "Import pukal",
+  "批量导入商品": "Import produk pukal",
+  "每行一个商品：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Satu produk setiap baris: nama, harga, unit, kategori, stok, penerangan. Harga wajib, yang lain pilihan.",
+  "直接从 Excel / 微信 / 记事本复制粘贴，逗号或 Tab 分隔都行": "Tampal terus dari Excel, WeChat atau Notepad — dipisah koma atau tab",
+  "导入": "Import",
+  "导入中…": "Mengimport…",
+  "已导入 {n} 个商品": "{n} produk diimport",
+  "第 {x} 行格式不对，已跳过": "Baris {x} tidak sah dan dilangkau",
+  "没有可导入的行，检查一下格式（名称, 价格, ...）": "Tiada baris untuk diimport — semak format (nama, harga, ...)",
+  "选择 Excel 文件": "Pilih fail Excel",
+  "支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面": "Menyokong .xlsx / .xls / .csv — atau tampal baris di bawah",
+  "或粘贴文本": "Atau tampal teks",
+  "列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Turutan lajur: nama, harga, unit, kategori, stok, penerangan. Harga wajib.",
+  "正在解析…": "Membaca fail…",
+  "Excel 读取失败，可以直接粘贴内容": "Fail tidak dapat dibaca — tampal baris secara manual",
+  "确认导入": "Sahkan import",
+  "缺价格或价格不是数字": "Harga tiada atau bukan nombor",
+  "名称": "Nama",
+  "共 {n} 行可导入": "{n} baris sedia",
+  "{m} 行有问题会跳过": "{m} baris akan dilangkau",
+  "只预览前 20 行，共 {n} 行": "Memaparkan 20 baris pertama daripada {n}",
+  "没有可导入的行，检查一下格式": "Tiada baris untuk diimport — semak format",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -3068,8 +2417,10 @@ function applyI18n(root) {
 
 function setLang(next) {
   lang = (next === 'en' || next === 'ms') ? next : 'zh';
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
   try { localStorage.setItem('maxai.lang', lang); } catch (e) { /* 忽略 */ }
   applyI18n();
+  try { renderBuild(); } catch (e) { /* 忽略 */ }
   if (!$('#appShell').hidden && state.me) {
     buildShell();
     switchView(state.view);
@@ -3140,6 +2491,8 @@ const ICONS = {
 };
 
 /* 客服联系方式（改这里即可换人/换号） */
+const BUILD = 'v2026-11-22.1320';
+
 const SUPPORT = {
   name: 'Max Dee',
   role: '管理员',
@@ -3878,6 +3231,7 @@ async function doRegister(event) {
   const name = form.full_name.value.trim();
   const email = form.email.value.trim().toLowerCase();
   const code = form.invite_code.value.trim().toUpperCase();
+  const companyName = (form.company_name && form.company_name.value.trim()) || '';
   const pwd = form.password.value;
   const pwd2 = form.password2.value;
 
@@ -3890,20 +3244,15 @@ async function doRegister(event) {
   btn.disabled = true;
   btn.textContent = t('处理中…');
   try {
-    /* 第一个账号（初始化）不需要邀请码，其余必须凭邀请码 */
-    const first = await sb.rpc('first_admin_available');
-    if (first.error) throw first.error;
-
-    let inv = { ok: false };
-    if (!first.data) {
-      if (!code) throw new Error(t('请输入邀请码，或联系管理员获取'));
+    /* 邀请码改成可选：填了就校验，没填也能注册（没邀请就是无公司的普通成员） */
+    if (code) {
       const chk = await sb.rpc('check_invite_code', { p_code: code });
       if (chk.error) throw chk.error;
-      inv = chk.data || { ok: false };
+      const inv = chk.data || { ok: false };
       if (!inv.ok) throw new Error(t('邀请码无效或已被使用'));
     }
 
-    const signOpts = { data: { full_name: name, invite_code: code || '' } };
+    const signOpts = { data: { full_name: name, invite_code: code || '', company_name: companyName } };
     /* 确认邮件点回来时回到当前页面，而不是 Supabase 默认的 localhost */
     if (/^https?:$/.test(location.protocol)) {
       signOpts.emailRedirectTo = location.origin + location.pathname;
@@ -3946,6 +3295,7 @@ async function doLogout() {
     okText: t('退出登录')
   });
   if (!ok) return;
+  try { localStorage.removeItem(CART_KEY); state.cart = {}; } catch (e) { /* 忽略 */ }
   stopOrderAlerts();
   try { await sb.auth.signOut(); } catch (e) { /* 忽略 */ }
   state.session = null; state.me = null; state.company = null;
@@ -4089,7 +3439,8 @@ async function switchView(id) {
     orders: '<button class="btn primary sm" type="button" data-act="new-order">+ ' + esc(t('新建订单')) + '</button>',
     users: '',
     companies: '',
-    products: '<button class="btn primary sm" type="button" data-act="new-product">+ ' + esc(t('新增商品')) + '</button>',
+    products: '<button class="btn ghost sm" type="button" data-act="bulk-import">' + esc(t('批量导入')) + '</button>' +
+      '<button class="btn primary sm" type="button" data-act="new-product">+ ' + esc(t('新增商品')) + '</button>',
     credit: '<button class="btn ghost sm" type="button" data-act="credit-refresh">' + esc(t('刷新')) + '</button>',
     audit: '<button class="btn ghost sm" type="button" data-act="audit-refresh">' + esc(t('刷新')) + '</button>',
     support: '',
@@ -4580,6 +3931,19 @@ function renderOrders() {
     '</div>';
 }
 
+function categoryOptions(selected) {
+  const preset = ['冷冻品', '海鲜', '蔬菜', '干货', '熟食', '其他'];
+  const set = {};
+  preset.forEach(function (x) { set[x] = 1; });
+  (state.products || []).forEach(function (p) { if (p.category) set[p.category] = 1; });
+  if (selected) set[selected] = 1;
+  const cur = selected || '';
+  return '<option value="">' + esc(t('未分类')) + '</option>' +
+    Object.keys(set).map(function (x) {
+      return '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>';
+    }).join('');
+}
+
 function payOptions(selected) {
   const cur = selected || 'unpaid';
   return Object.keys(PAYMENT).map(function (k) {
@@ -4687,6 +4051,7 @@ async function saveOrder(event) {
 
   const payload = {
     company_id: companyId,
+    user_id: state.me.id,
     customer_name: customerName,
     customer_phone: form.customer_phone.value.trim() || null,
     product_name: productName,
@@ -4952,6 +4317,11 @@ function openInviteModal() {
         '<button class="btn primary" type="submit">' + esc(t('生成邀请码')) + '</button>' +
       '</div></form>');
   $('#inviteForm').addEventListener('submit', saveInvite);
+
+  /* 平台方（超管）建的邀请默认是「公司管理员」→ 邀请老板开户用；
+     公司管理员自己发的邀请默认「普通用户」→ 邀请员工/客户 */
+  const roleSel = $('#inviteForm select[name=role]');
+  if (roleSel && isSuper()) roleSel.value = 'company_admin';
   setTimeout(function () { const i = $('#inviteForm input[name=note]'); if (i) i.focus(); }, 80);
 }
 
@@ -5715,7 +5085,11 @@ async function creditRemind(key) {
  * -------------------------------------------------------------------------- */
 state.products = [];
 state.stockStats = {};
-state.cart = {};
+state.cart = (function () {
+  try { return JSON.parse(localStorage.getItem('maxai.cart') || '{}') || {}; } catch (e) { return {}; }
+})();
+const CART_KEY = 'maxai.cart';
+function saveCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch (e) { /* 忽略 */ } }
 state.menuQ = '';
 state.menuCat = '';
 
@@ -5805,7 +5179,12 @@ function renderMenu() {
 
   if (!list.length) {
     $('#menuGrid').innerHTML = '<div class="card"><div class="empty"><b>' + esc(t('还没有上架商品')) + '</b>' +
-      (isStaff() ? esc(t('可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单')) : esc(t('商家还没有上架商品，可以直接在「订单管理」手动下单'))) + '</div></div>';
+      (isStaff()
+        ? esc(t('可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单'))
+        : esc(t('商家还没有上架商品，可以直接在「订单管理」手动下单'))) +
+      (state.company && state.company.phone
+        ? '<div style="margin-top:14px"><a class="btn primary" target="_blank" rel="noopener" href="' + esc(waLinkFor(state.company.phone, (state.company && state.company.currency) || 'SGD', t('你好，我想咨询你们的产品'))) + '">' + esc(t('联系卖家')) + '</a></div>'
+        : '') + '</div></div>';
     updateCartBar();
     return;
   }
@@ -5831,11 +5210,14 @@ function renderMenu() {
             (p.unit ? '<span class="p-unit">/ ' + esc(p.unit) + '</span>' : '') + '</div>' +
           (noStock
             ? '<span class="p-oos">' + esc(t('缺货')) + '</span>'
-            : '<div class="stepper">' +
-                '<button type="button" data-act="cart-minus" data-id="' + p.id + '"' + (qty <= 0 ? ' disabled' : '') + '>−</button>' +
-                '<em>' + qty + '</em>' +
-                '<button type="button" data-act="cart-plus" data-id="' + p.id + '">+</button>' +
-              '</div>') +
+            : (function () {
+                const step = /克|斤|kg|KG|g|L|升/.test(String(p.unit || '')) ? 0.5 : 1;
+                return '<div class="stepper">' +
+                  '<button type="button" data-act="cart-minus" data-id="' + p.id + '" data-step="' + step + '"' + (qty <= 0 ? ' disabled' : '') + '>−</button>' +
+                  '<input class="qty-in" data-id="' + p.id + '" type="number" min="0" step="' + step + '" value="' + qty + '">' +
+                  '<button type="button" data-act="cart-plus" data-id="' + p.id + '" data-step="' + step + '">+</button>' +
+                '</div>';
+              })()) +
         '</div>' +
       '</div>' +
     '</div>';
@@ -5845,15 +5227,29 @@ function renderMenu() {
   syncMenuTools();
 }
 
+function cartSet(id, value) {
+  const p = state.products.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  let next = Number(value);
+  if (!isFinite(next) || next < 0) next = 0;
+  const max = (p.stock === null || p.stock === undefined) ? null : Number(p.stock);
+  if (max !== null && next > max) { toast(tf('库存只剩 {n}', { n: max }), 'warn'); next = max; }
+  next = Math.round(next * 100) / 100;
+  if (next) state.cart[id] = next; else delete state.cart[id];
+  saveCart();
+  renderMenu();
+}
+
 function cartChange(id, delta) {
   const p = state.products.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
   const cur = state.cart[id] || 0;
-  let next = cur + delta;
+  let next = Math.round((cur + delta) * 100) / 100;
   if (next < 0) next = 0;
   const max = (p.stock === null || p.stock === undefined) ? null : Number(p.stock);
   if (max !== null && next > max) { toast(tf('库存只剩 {n}', { n: max }), 'warn'); next = max; }
   if (next) state.cart[id] = next; else delete state.cart[id];
+  saveCart();
   renderMenu();
 }
 
@@ -5883,6 +5279,15 @@ function openCheckout() {
           '<input class="input" name="customer_name" required maxlength="50" value="' + esc(state.me.full_name || '') + '"></label>' +
         '<label class="field"><span>' + esc(t('联系方式')) + '</span>' +
           '<input class="input" name="customer_phone" maxlength="40" placeholder="' + esc(t('选填')) + '"></label>' +
+        '<label class="field span-2"><span>' + esc(t('送货地址')) + '</span>' +
+          '<input class="input" name="delivery_address" maxlength="120" placeholder="' + esc(t('选填')) + '"></label>' +
+        '<label class="field"><span>' + esc(t('送货日期')) + '</span>' +
+          '<input class="input" name="delivery_date" type="date"></label>' +
+        '<label class="field"><span>' + esc(t('付款方式')) + '</span>' +
+          '<select class="select" name="payment_method">' +
+            '<option value="cod">' + esc(t('现付（货到付款）')) + '</option>' +
+            '<option value="credit">' + esc(t('赊账')) + '</option>' +
+          '</select></label>' +
         '<label class="field span-2"><span>' + esc(t('备注')) + '</span>' +
           '<textarea class="textarea" name="remark" rows="2" maxlength="200" placeholder="' + esc(t('送货要求、时间等')) + '"></textarea></label>' +
       '</div>' +
@@ -5932,6 +5337,7 @@ async function submitCheckout(event) {
   try {
     const res = await sb.from('orders').insert({
       company_id: myCompanyId(),
+      user_id: state.me.id,
       customer_name: name,
       customer_phone: form.customer_phone.value.trim() || null,
       product_name: summary,
@@ -5941,7 +5347,8 @@ async function submitCheckout(event) {
       paid_amount: 0,
       status: 'pending',
       ordered_at: new Date().toISOString(),
-      remark: form.remark.value.trim() || null
+      remark: buildOrderRemark(form),
+      due_at: buildDueDate(form)
     }).select();
     if (res.error) throw res.error;
     const row = (res.data && res.data[0]) || null;
@@ -5962,7 +5369,8 @@ async function submitCheckout(event) {
 
     closeModal();
     state.cart = {};
-    toast(tf('下单成功，共 {v}', { v: money(total, cur) }), 'ok');
+    saveCart();
+    showOrderSuccess(row.order_no || '', total, cur);
     renderMenu();
     switchView('orders');
     if (state.view === 'orders') loadOrders(0).catch(function () {});
@@ -6004,7 +5412,12 @@ async function loadProducts() {
 }
 
 function renderProducts() {
-  const list = state.products;
+  const kw = (state.pSearch || '').toLowerCase().trim();
+  const list = kw
+    ? state.products.filter(function (p) {
+        return ((p.name || '') + ' ' + (p.category || '') + ' ' + (p.description || '')).toLowerCase().indexOf(kw) !== -1;
+      })
+    : state.products;
   const cur = (state.company && state.company.currency) || 'SGD';
   $('#pCount').textContent = tf('共 {n} 个', { n: list.length });
   const LOW = 5;
@@ -6156,7 +5569,9 @@ function openProductModal(p) {
         '<label class="field"><span>' + esc(t('商品名')) + '<em>*</em></span>' +
           '<input class="input" name="name" required maxlength="60" value="' + esc(editing ? p.name : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('分类')) + '</span>' +
-          '<input class="input" name="category" maxlength="30" value="' + esc(editing ? (p.category || '') : '') + '"></label>' +
+          '<select class="select" name="category">' + categoryOptions(editing ? p.category : '') + '</select></label>' +
+        '<label class="field"><span>' + esc(t('新分类（可选）')) + '</span>' +
+          '<input class="input" name="category_new" maxlength="30" placeholder="' + esc(t('填了就新建这个分类')) + '"></label>' +
         '<label class="field"><span>' + esc(t('价格')) + ' (' + esc(curSymbol(cur)) + ')<em>*</em></span>' +
           '<input class="input" name="price" type="number" min="0" step="0.01" required value="' + esc(editing ? p.price : 0) + '"></label>' +
         '<label class="field"><span>' + esc(t('单位')) + '</span>' +
@@ -6245,7 +5660,7 @@ async function saveProduct(event) {
     description: form.description.value.trim() || null,
     price: price,
     unit: form.unit.value.trim() || null,
-    category: form.category.value.trim() || null,
+    category: (form.category_new && form.category_new.value.trim()) || form.category.value || null,
     stock: form.stock.value === '' ? null : Number(form.stock.value),
     image_url: form.image_url.value || null,
     is_active: form.is_active.value === 'true'
@@ -6518,9 +5933,256 @@ async function exportOrdersCsv() {
   setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   toast(tf('已导出 {n} 笔订单', { n: all.length }), 'ok');
 }
+
+/* ---------------- 登录后修改密码 ---------------- */
+function openChangePw() {
+  openModal(t('修改密码'),
+    '<form id="pwForm" novalidate>' +
+      '<label class="field"><span>' + esc(t('新密码')) + '<em>*</em></span>' +
+        '<input class="input" name="p1" type="password" minlength="6" autocomplete="new-password" required placeholder="' + esc(t('至少 6 位')) + '"></label>' +
+      '<label class="field" style="margin-top:10px"><span>' + esc(t('再输入一次')) + '<em>*</em></span>' +
+        '<input class="input" name="p2" type="password" minlength="6" autocomplete="new-password" required></label>' +
+      '<div class="hint" style="margin-top:10px">' + esc(t('改完请用新密码重新登录')) + '</div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
+      '</div></form>');
+  $('#pwForm').addEventListener('submit', saveChangePw);
+}
+
+async function saveChangePw(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+  const p1 = form.p1.value;
+  const p2 = form.p2.value;
+  if (p1.length < 6) { errBox.textContent = t('密码至少 6 位'); return; }
+  if (p1 !== p2) { errBox.textContent = t('两次输入的密码不一致'); return; }
+
+  btn.disabled = true;
+  btn.textContent = t('保存中…');
+  try {
+    const res = await sb.auth.updateUser({ password: p1 });
+    if (res.error) throw res.error;
+    closeModal();
+    toast(t('密码已更新'), 'ok');
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('保存');
+  }
+}
+
+
+/* 结账三项打包进备注 + 到期日（赊账默认 30 天） */
+function buildOrderRemark(form) {
+  const parts = [];
+  const note = form.remark.value.trim();
+  if (note) parts.push(note);
+  const addr = form.delivery_address ? form.delivery_address.value.trim() : '';
+  if (addr) parts.push(t('送货地址') + '：' + addr);
+  const ddate = form.delivery_date ? form.delivery_date.value : '';
+  if (ddate) parts.push(t('送货日期') + '：' + ddate);
+  const pm = form.payment_method ? form.payment_method.value : 'cod';
+  parts.push(t('付款方式') + '：' + (pm === 'credit' ? t('赊账') : t('现付（货到付款）')));
+  return parts.join(' · ') || null;
+}
+
+function buildDueDate(form) {
+  const ddate = form.delivery_date ? form.delivery_date.value : '';
+  if (!ddate) return null;
+  const d = new Date(ddate + 'T00:00:00');
+  const pm = form.payment_method ? form.payment_method.value : 'cod';
+  if (pm === 'credit') d.setDate(d.getDate() + 30);
+  const p = function (n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+/* 下单成功页：显示订单号 */
+function showOrderSuccess(orderNo, total, cur) {
+  openModal(t('下单成功'),
+    '<div class="empty" style="padding:18px 10px">' +
+      '<b>' + esc(t('订单已提交，商家会尽快联系你')) + '</b>' +
+      '<div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">' + esc(t('订单号')) + '</div>' +
+      '<div class="mono" style="font-size:17px;font-weight:800;letter-spacing:.06em;color:#7ce9ff">' + esc(orderNo || '—') + '</div>' +
+      '<div style="margin-top:12px;font-size:13px">' + esc(t('合计')) + ' <b>' + money(total, cur) + '</b></div>' +
+    '</div>' +
+    '<div class="form-actions">' +
+      '<button class="btn primary" type="button" data-act="goto-orders">' + esc(t('查看我的订单')) + '</button>' +
+      '<button class="btn ghost" type="button" data-close>' + esc(t('继续选购')) + '</button>' +
+    '</div>');
+}
+
+
+/* ---------------- 批量导入商品（Excel / 粘贴） ---------------- */
+let xlsxPromise = null;
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (xlsxPromise) return xlsxPromise;
+  xlsxPromise = new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = function () { window.XLSX ? resolve(window.XLSX) : reject(new Error('XLSX missing')); };
+    s.onerror = function () { reject(new Error('load failed')); };
+    document.head.appendChild(s);
+  });
+  return xlsxPromise;
+}
+
+function openBulkImport() {
+  openModal(t('批量导入商品'),
+    '<form id="bulkForm" novalidate>' +
+      '<label class="field"><span>' + esc(t('选择 Excel 文件')) + '</span>' +
+        '<input class="input" type="file" id="bulkFile" accept=".xlsx,.xls,.csv" style="padding:8px"></label>' +
+      '<div class="hint" style="margin:8px 0 12px">' + esc(t('支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面')) + '</div>' +
+      '<label class="field"><span>' + esc(t('或粘贴文本')) + '</span>' +
+        '<textarea class="textarea" id="bulkCsv" name="csv" rows="7" spellcheck="false" style="font-family:var(--mono);font-size:12.5px" placeholder="' +
+          esc('Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳') + '"></textarea></label>' +
+      '<div class="hint" style="margin-top:8px">' + esc(t('列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。')) + '</div>' +
+      '<div id="bulkPreview" style="margin-top:12px"></div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit" id="bulkImportBtn" disabled>' + esc(t('确认导入')) + '</button>' +
+      '</div></form>');
+
+  $('#bulkForm').addEventListener('submit', doBulkImport);
+  $('#bulkCsv').addEventListener('input', renderBulkPreview);
+  $('#bulkFile').addEventListener('change', handleBulkFile);
+  renderBulkPreview();
+}
+
+async function handleBulkFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const errBox = document.querySelector('#bulkForm .form-error');
+  errBox.textContent = '';
+  errBox.textContent = t('正在解析…');
+  try {
+    const XLSX = await loadXLSX();
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+    $('#bulkCsv').value = csv;
+    errBox.textContent = '';
+    renderBulkPreview();
+  } catch (e) {
+    errBox.textContent = t('Excel 读取失败，可以直接粘贴内容');
+  }
+}
+
+function parseBulkRows(text) {
+  const lines = String(text || '').split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+  const items = [];
+  lines.forEach(function (line, i) {
+    const c = line.split(/\t|,|，|;|；/).map(function (s) { return s.trim(); });
+    const name = c[0] || '';
+    if (!name) return;
+    if (/^(名称|商品名|name)$/i.test(name)) return;
+    const priceRaw = c[1];
+    const price = Number(priceRaw);
+    let ok = true, why = '';
+    if (priceRaw === '' || priceRaw === undefined || !isFinite(price) || price < 0) {
+      ok = false; why = t('缺价格或价格不是数字');
+    }
+    items.push({ no: i + 1, name: name, price: ok ? price : 0, unit: c[2] || '', category: c[3] || '', stock: c[4] || '', description: c[5] || '', ok: ok, why: why });
+  });
+  return items;
+}
+
+function renderBulkPreview() {
+  const items = parseBulkRows($('#bulkCsv').value);
+  const box = $('#bulkPreview');
+  const btn = $('#bulkImportBtn');
+  if (!box) return;
+  const okN = items.filter(function (i) { return i.ok; }).length;
+  const badN = items.length - okN;
+  if (btn) btn.disabled = okN === 0;
+
+  if (!items.length) { box.innerHTML = ''; return; }
+
+  const rows = items.slice(0, 20).map(function (r) {
+    return '<tr' + (r.ok ? '' : ' style="background:rgba(251,113,133,.08)"') + '>' +
+      '<td class="muted">' + r.no + '</td>' +
+      '<td>' + esc(r.name || '—') + '</td>' +
+      '<td class="num">' + (r.ok ? money(r.price, (state.company && state.company.currency) || 'SGD') : '<span class="low-stock">' + esc(r.why) + '</span>') + '</td>' +
+      '<td class="muted">' + esc(r.unit || '—') + '</td>' +
+      '<td class="muted">' + esc(r.category || '—') + '</td>' +
+      '<td class="num">' + esc(r.stock || '—') + '</td></tr>';
+  }).join('');
+
+  box.innerHTML =
+    '<div class="hint" style="margin-bottom:6px">' +
+      esc(tf('共 {n} 行可导入', { n: okN })) + (badN ? ' · <span class="low-stock">' + esc(tf('{m} 行有问题会跳过', { m: badN })) + '</span>' : '') +
+    '</div>' +
+    '<div class="table-wrap" style="max-height:220px;overflow:auto">' +
+      '<table class="table"><thead><tr>' +
+        '<th>#</th><th>' + esc(t('名称')) + '</th><th class="num">' + esc(t('价格')) + '</th>' +
+        '<th>' + esc(t('单位')) + '</th><th>' + esc(t('分类')) + '</th><th class="num">' + esc(t('库存')) + '</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>' +
+    (items.length > 20 ? '<div class="muted sm-text" style="margin-top:6px">' + esc(tf('只预览前 20 行，共 {n} 行', { n: items.length })) + '</div>' : '');
+}
+
+async function doBulkImport(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = $('#bulkImportBtn');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+
+  const items = parseBulkRows($('#bulkCsv').value).filter(function (i) { return i.ok; });
+  if (!items.length) { errBox.textContent = t('没有可导入的行，检查一下格式'); return; }
+
+  const cid = isSuper() ? (state.companies[0] && state.companies[0].id) : myCompanyId();
+  if (!cid) { errBox.textContent = t('请先选择公司'); return; }
+
+  const payload = items.map(function (r) {
+    return {
+      company_id: cid,
+      name: r.name,
+      price: r.price,
+      unit: r.unit || null,
+      category: r.category || null,
+      stock: r.stock === '' ? null : Number(r.stock),
+      description: r.description || null,
+      is_active: true
+    };
+  });
+
+  btn.disabled = true;
+  btn.textContent = t('导入中…');
+  setBusy(true);
+  try {
+    const res = await sb.from('products').insert(payload);
+    if (res.error) throw res.error;
+    closeModal();
+    toast(tf('已导入 {n} 个商品', { n: payload.length }), 'ok');
+    await loadProducts();
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    setBusy(false);
+    btn.disabled = false;
+    btn.textContent = t('确认导入');
+  }
+}
+
 /* ----------------------------------------------------------------------------
  * 15. 事件
  * -------------------------------------------------------------------------- */
+function renderBuild() {
+  const el = $('#buildStamp');
+  if (!el) return;
+  el.textContent = BUILD + ' · ' + (document.body ? '' : '') + Math.round(html_len() / 1024) + 'KB';
+}
+function html_len() { try { return new Blob([document.documentElement.outerHTML]).size; } catch (e) { return 0; } }
+
 function bindEvents() {
   document.addEventListener('click', function (event) {
     const target = event.target;
@@ -6594,15 +6256,18 @@ function bindEvents() {
         break;
       }
       case 'enable-alert': enableAlerts(); break;
+      case 'change-pw': openChangePw(); break;
+      case 'goto-orders': closeModal(); switchView('orders'); break;
       case 'export-csv': exportOrdersCsv(); break;
       case 'credit-refresh': loadCredit().catch(function (e) { toast(errMsg(e), 'error'); }); break;
       case 'credit-open': state.creditOpen[el.dataset.key] = !state.creditOpen[el.dataset.key]; renderCredit(); break;
       case 'credit-remind': creditRemind(el.dataset.key); break;
-      case 'cart-plus': cartChange(el.dataset.id, 1); break;
-      case 'cart-minus': cartChange(el.dataset.id, -1); break;
+      case 'cart-plus': cartChange(el.dataset.id, Number(el.dataset.step) || 1); break;
+      case 'cart-minus': cartChange(el.dataset.id, -(Number(el.dataset.step) || 1)); break;
       case 'checkout': openCheckout(); break;
       case 'new-product': openProductModal(null); break;
       case 'products-refresh': loadProducts().catch(function (e) { toast(errMsg(e), 'error'); }); break;
+      case 'bulk-import': openBulkImport(); break;
       case 'product-edit': openProductModal(state.products.filter(function (x) { return x.id === el.dataset.id; })[0]); break;
       case 'product-toggle': toggleProduct(el.dataset.id); break;
       case 'product-stock': openStockModal(state.products.filter(function (x) { return x.id === el.dataset.id; })[0]); break;
@@ -6626,6 +6291,8 @@ function bindEvents() {
     else if (el.id === 'fpayment') { state.filters.payment = el.value; loadOrders(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
     else if (el.id === 'menuSearch') { state.menuQ = el.value; renderMenu(); }
     else if (el.id === 'menuCat') { state.menuCat = el.value; renderMenu(); }
+    else if (el.classList && el.classList.contains('qty-in')) { cartSet(el.dataset.id, el.value); }
+    else if (el.id === 'pSearch') { state.pSearch = el.value; renderProducts(); }
     else if (el.id === 'auditEntity') { state.auditEntity = el.value; loadAudit(0).catch(function (e) { toast(errMsg(e), 'error'); }); }
     else if (el.id === 'creditOverdue') { state.creditOnlyOverdue = el.checked; renderCredit(); }
   });
@@ -6664,6 +6331,7 @@ function bindEvents() {
  * -------------------------------------------------------------------------- */
 async function boot() {
   applyI18n();
+  try { renderBuild(); } catch (e) { /* 忽略 */ }
 
   /* 邀请码：新的用 ?invite=，旧的二维码 ?code= 仍然兼容（只认 MX- 开头的，
      避免把 Supabase 邮箱确认回调的 ?code= 当成邀请码） */
