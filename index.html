@@ -1515,8 +1515,11 @@ const EN = {
   "只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。": "Kept in this browser only. Re-enter after switching device. For deployment, hard-code it in the file.",
   "查看建表 SQL / 配置说明": "Setup SQL & guide",
   "连接填错了？重新填写": "Wrong connection? Re-enter",
-  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。": "An invite is required. If nobody exists yet, the first sign-up becomes super admin.",
-  "首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。": "First run: no user exists yet — the first account becomes super admin.",
+  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号会创建自己的公司并成为公司管理员。": "An invite is required. If nobody exists yet, the first sign-up creates a company and becomes its company admin.",
+  "首次初始化：系统中还没有任何用户，现在注册的账号会创建你自己的公司，你成为该公司管理员（company_admin），不需要邀请码。": "First run: no user exists yet. Signing up now creates your company and makes you its company admin (company_admin) — no invite code needed.",
+  "初始化完成：公司已创建，你是这家公司的管理员（company_admin）": "Setup complete — your company is created and you are its company admin (company_admin).",
+  "注册成功，已进入系统": "Account created — you are signed in.",
+  "注册成功！请到邮箱点击确认链接后再登录": "Registered! Confirm the link in your email, then sign in.",
   "注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。": "An invite is required. Ask your admin to invite your email first.",
   "账号暂不可用": "Account unavailable",
   "取消": "Cancel",
@@ -1697,6 +1700,24 @@ const EN = {
   "权限与数据隔离说明": "Permissions & isolation",
   "邀请 / 邮件常见问题": "Invites & email FAQ",
   "邀请 / 二维码常见问题": "Invites & QR FAQ",
+
+  /* —— 系统配置页：上线四步 / 邀请二维码 FAQ / 权限隔离说明（整段走词典） —— */
+  "在 supabase.com 新建项目，Region 建议选 Singapore / Tokyo。": "Create a project at supabase.com — Region: Singapore / Tokyo recommended.",
+  "左侧 SQL Editor → New query → 粘贴下方 SQL → Run（Ctrl+Enter），只需一次。": "SQL Editor → New query → paste the SQL below → Run (Ctrl+Enter). Once is enough.",
+  "Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。": "Project Settings → API → copy Project URL and anon public into the <b>two constants at the top of the file</b> (required when hosted on GitHub Pages, otherwise visitors only see “not connected”).",
+  "注册第一个账号 —— 自动创建你的公司，你成为这家公司的管理员（company_admin），不是平台超级管理员。": "Sign up the first account — it creates your company automatically and you become its company admin (company_admin), not the platform super admin.",
+  "<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。": "<b>Platform owner (super admin)</b>: manages companies and accounts only — <b>cannot see any tenant orders</b> (blocked by RLS).",
+  "<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。": "<b>Company admin</b>: own company only; invites members and manages that company’s orders.",
+  "<b>普通用户</b>：只看到自己录入的订单，只能新建订单。": "<b>Member</b>: sees only their own orders and can create new ones.",
+  "<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。": "<b>How isolation works</b>: every query carries company_id, and Postgres RLS enforces it server-side — editing the frontend still gets you nothing.",
+  "<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。": "<b>Security</b>: only the anon key belongs in the frontend — <b>never put the service_role key in the page</b>.",
+  "<b>平台超级管理员不会自动产生</b>：第一个注册的人只是自己公司的管理员；要指定站长，由站长本人在 Supabase → SQL Editor 执行一条 update 把自己的账号设为 super_admin（写法见 supabase-schema.sql 末尾的说明）。": "<b>The platform super admin is never created automatically</b>: the first sign-up only becomes admin of its own company. To designate the site owner, run one UPDATE in Supabase → SQL Editor to set that account to super_admin (the exact statement is at the end of supabase-schema.sql).",
+  "<b>邀请是怎么走的：</b>「用户管理 → 邀请客服」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>How does inviting work?</b> Users → Invite agent creates a 6-character code and a QR. Share the QR or the code on WhatsApp; the invitee enters the code at sign-up and joins the company automatically.",
+  "<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。": "<b>No email is sent.</b> Browsers cannot call a mail service, so nothing is emailed — you share the QR/code/link yourself.",
+  "<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。": "<b>“Invite” fails — three causes:</b> ① you are not a company admin ② your account has no company ③ the setup SQL was not run (v2 must be re-run; the invites table needs a code column). Check the red message in the dialog.",
+  "<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。": "<b>Signup rejected:</b> make sure Supabase → Authentication → Providers → Email is enabled; for internal use turn off “Confirm email”.",
+  "<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。": "<b>Code not working?</b> Invite codes are single-use — once someone signs up with it the invite is void. Generate a new one.",
+  "<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。": "<b>“Confirm email” link opens localhost:</b> that is Supabase’s default Site URL. Either turn off Authentication → Providers → Email → “Confirm email” (recommended for invited staff), or set Authentication → URL Configuration → Site URL to your page URL (e.g. https://maxd331992.github.io/) and add it to Redirect URLs.",
   "账号没有分配公司时看不到数据，超级管理员可在「用户管理」里直接改所属公司。": "An account without a company sees nothing; a super admin can assign it in Users.",
   "浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量": "Browser storage is blocked (incognito?). Use the constants in the file instead.",
   "邮箱或密码不正确": "Wrong email or password",
@@ -2306,8 +2327,11 @@ const MS = {
   "只保存在本浏览器，不会上传。换电脑或清空浏览器数据后需要重填；长期部署可写进文件顶部常量。": "Disimpan dalam pelayar ini sahaja. Untuk penggunaan berterusan, letak dalam pemalar fail.",
   "查看建表 SQL / 配置说明": "Lihat SQL / konfigurasi",
   "连接填错了？重新填写": "Sambungan salah? Isi semula",
-  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号将成为超级管理员。": "Pendaftaran memerlukan jemputan. Jika belum ada pengguna, akaun pertama menjadi pentadbir platform.",
-  "首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。": "Inisialisasi pertama: akaun pertama yang mendaftar akan menjadi pentadbir platform.",
+  "注册需要管理员邀请；若系统还没有任何用户，第一个注册的账号会创建自己的公司并成为公司管理员。": "Pendaftaran memerlukan jemputan. Jika belum ada pengguna, pendaftaran pertama akan mencipta syarikatnya sendiri dan menjadi pentadbir syarikat itu.",
+  "首次初始化：系统中还没有任何用户，现在注册的账号会创建你自己的公司，你成为该公司管理员（company_admin），不需要邀请码。": "Inisialisasi pertama: belum ada pengguna. Pendaftaran sekarang akan mencipta syarikat anda dan menjadikan anda pentadbir syarikat (company_admin) — kod jemputan tidak diperlukan.",
+  "初始化完成：公司已创建，你是这家公司的管理员（company_admin）": "Persediaan selesai — syarikat anda telah dicipta dan anda ialah pentadbir syarikat (company_admin).",
+  "注册成功，已进入系统": "Akaun dicipta — anda telah dimasukkan ke sistem.",
+  "注册成功！请到邮箱点击确认链接后再登录": "Pendaftaran berjaya! Sahkan pautan dalam e-mel anda, kemudian log masuk.",
   "注册需要管理员邀请：请让公司管理员在「用户管理 → 邀请用户」中填写你的邮箱，再用该邮箱注册。": "Pendaftaran memerlukan jemputan: minta pentadbir syarikat menjemput e-mel anda dahulu.",
   "复制失败，请手动选中复制": "Salinan gagal — pilih dan salin secara manual",
   "+ 新建公司": "+ Syarikat baharu",
@@ -2343,6 +2367,24 @@ const MS = {
   "权限与数据隔离说明": "Kebenaran dan pengasingan data",
   "邀请 / 邮件常见问题": "Soalan lazim: jemputan / e-mel",
   "邀请 / 二维码常见问题": "Soalan lazim: jemputan / QR",
+
+  /* —— 系统配置页：上线四步 / 邀请二维码 FAQ / 权限隔离说明（整段走词典） —— */
+  "在 supabase.com 新建项目，Region 建议选 Singapore / Tokyo。": "Cipta projek di supabase.com — Region: Singapore / Tokyo disyorkan.",
+  "左侧 SQL Editor → New query → 粘贴下方 SQL → Run（Ctrl+Enter），只需一次。": "SQL Editor → New query → tampal SQL di bawah → Run (Ctrl+Enter). Sekali sahaja.",
+  "Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。": "Project Settings → API → salin Project URL dan anon public ke <b>dua pemalar di bahagian atas fail</b> (wajib jika dihoskan di GitHub Pages, jika tidak pelawat hanya nampak “belum disambungkan”).",
+  "注册第一个账号 —— 自动创建你的公司，你成为这家公司的管理员（company_admin），不是平台超级管理员。": "Daftar akaun pertama — sistem mencipta syarikat anda secara automatik dan anda menjadi pentadbir syarikat (company_admin), bukan pentadbir platform.",
+  "<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。": "<b>Pemilik platform (pentadbir platform)</b>: hanya mengurus syarikat dan akaun sahaja — <b>tidak dapat melihat pesanan mana-mana syarikat</b> (disekat oleh RLS).",
+  "<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。": "<b>Pentadbir syarikat</b>: hanya syarikat sendiri; boleh menjemput ahli dan mengurus pesanan syarikat itu.",
+  "<b>普通用户</b>：只看到自己录入的订单，只能新建订单。": "<b>Ahli</b>: hanya nampak pesanan yang dia masukkan sendiri dan boleh mencipta pesanan baharu.",
+  "<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。": "<b>Prinsip pengasingan</b>: setiap pertanyaan membawa company_id, dan Postgres RLS menguatkuasakannya di pihak pelayan — mengubah frontend pun tidak membuka data syarikat lain.",
+  "<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。": "<b>Peringatan keselamatan</b>: hanya anon key diletakkan di frontend — <b>service_role key sama sekali tidak boleh dimasukkan ke dalam halaman web</b>.",
+  "<b>平台超级管理员不会自动产生</b>：第一个注册的人只是自己公司的管理员；要指定站长，由站长本人在 Supabase → SQL Editor 执行一条 update 把自己的账号设为 super_admin（写法见 supabase-schema.sql 末尾的说明）。": "<b>Pentadbir platform tidak dijana secara automatik</b>: orang pertama yang mendaftar hanyalah pentadbir syarikatnya sendiri. Untuk menetapkan pemilik laman, jalankan satu UPDATE di Supabase → SQL Editor untuk menetapkan akaun itu sebagai super_admin (ayat penuh ada di hujung fail supabase-schema.sql).",
+  "<b>邀请是怎么走的：</b>「用户管理 → 邀请客服」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>Bagaimana jemputan berfungsi?</b> Pengguna → Jemput ejen menjana kod 6 aksara dan kod QR. Kongsi kod QR atau kod itu di WhatsApp; penerima memasukkan kod semasa mendaftar dan menyertai syarikat anda secara automatik.",
+  "<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。": "<b>Tiada e-mel dihantar secara automatik.</b> Pelayar tidak boleh memanggil perkhidmatan e-mel, jadi sistem tidak menghantar e-mel — anda sendiri yang berkongsi kod QR/kod/pautan itu.",
+  "<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。": "<b>“Jemput” gagal — tiga punca:</b> ① anda bukan pentadbir syarikat ② akaun anda belum ditetapkan kepada syarikat ③ SQL inisialisasi belum dijalankan (v2 perlu dijalankan semula; jadual jemputan perlu lajur code). Semak teks merah dalam tetingkap.",
+  "<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。": "<b>Pendaftaran ditolak:</b> pastikan Supabase → Authentication → Providers → Email dihidupkan; untuk kegunaan dalaman, matikan “Confirm email”.",
+  "<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。": "<b>Kod tidak boleh digunakan?</b> Kod jemputan hanya sekali guna — selepas digunakan jemputan terbatal. Jana kod baharu.",
+  "<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。": "<b>Pautan “Confirm email” membuka localhost:</b> itu Site URL lalai Supabase. Dua penyelesaian: ① (disyorkan untuk kakitangan yang dijemput) Authentication → Providers → Email → matikan “Confirm email”, terus log masuk selepas mendaftar; ② atau Authentication → URL Configuration → tukar Site URL kepada alamat anda (cth. https://maxd331992.github.io/), dan tambah alamat yang sama ke Redirect URLs.",
   "账号没有分配公司时看不到数据，超级管理员可在「用户管理」里直接改所属公司。": "Akaun tanpa syarikat tidak nampak data. Pentadbir boleh tetapkan syarikat dalam Pengguna.",
   "浏览器禁止了本地存储（可能开了无痕模式），请改用文件顶部常量": "Storan pelayar disekat (mungkin mod inkognito) — guna pemalar fail.",
   "邮箱还未验证，请先到邮箱点击确认链接": "E-mel belum disahkan — klik pautan pengesahan dalam e-mel.",
@@ -2611,7 +2653,10 @@ const ICONS = {
 };
 
 /* 客服联系方式（改这里即可换人/换号） */
-const BUILD = 'v2026-11-22.1835';
+/* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
+   登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
+   同一分钟内连续部署，就在后面加 -r2 / -r3 … */
+const BUILD = 'v2026-11-22.1739';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -3036,11 +3081,11 @@ async function probeFirstAdmin() {
     const res = await sb.rpc('first_admin_available');
     if (res.error) throw res.error;
     if (res.data === true) {
-      /* 空库：第一账号就是超级管理员，此时不需要邀请码 */
+      /* 空库：第一个注册的人会自动建一家公司、成为该公司管理员（不是平台超管），此时不需要邀请码 */
       $('#inviteField').hidden = true;
       const ic = $('#inviteCode');
       if (ic) { ic.required = false; ic.value = ''; }
-      $('#registerHint').textContent = t('首次初始化：系统中还没有任何用户，现在注册的第一个账号将自动成为超级管理员。');
+      $('#registerHint').textContent = t('首次初始化：系统中还没有任何用户，现在注册的账号会创建你自己的公司，你成为该公司管理员（company_admin），不需要邀请码。');
       if (!state.inviteCode) switchAuthTab('register');
     } else {
       $('#inviteField').hidden = false;
@@ -3372,6 +3417,13 @@ async function doRegister(event) {
       if (!inv.ok) throw new Error(t('邀请码无效或已被使用'));
     }
 
+    /* 先确认库里是否还没有用户：空库时这个账号会自动建公司并成为 company_admin（不是平台超管） */
+    let isFirstUser = false;
+    try {
+      const probe = await sb.rpc('first_admin_available');
+      isFirstUser = !!(probe && probe.data === true);
+    } catch (e) { /* 探测失败不影响注册 */ }
+
     const signOpts = { data: { full_name: name, invite_code: code || '', company_name: companyName } };
     /* 确认邮件点回来时回到当前页面，而不是 Supabase 默认的 localhost */
     if (/^https?:$/.test(location.protocol)) {
@@ -3388,14 +3440,12 @@ async function doRegister(event) {
     if (res.data.session) {
       state.session = res.data.session;
       $('#agreeTerms').checked = false;
-      toast(first.data
-        ? (lang !== 'zh' ? 'Setup complete — you are the super admin' : '初始化完成，你已成为超级管理员')
-        : (lang !== 'zh' ? 'Account created' : '注册成功'), 'ok');
+      toast(t(isFirstUser
+        ? '初始化完成：公司已创建，你是这家公司的管理员（company_admin）'
+        : '注册成功，已进入系统'), 'ok');
       await enterApp();
     } else {
-      toast(lang !== 'zh'
-        ? 'Registered. Confirm your email, then sign in.'
-        : '注册成功！请到邮箱点击确认链接后再登录', 'ok');
+      toast(t('注册成功！请到邮箱点击确认链接后再登录'), 'ok');
       switchAuthTab('login');
       form.reset();
       $('#agreeTerms').checked = false;
@@ -3552,7 +3602,7 @@ async function switchView(id) {
   $$('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + id); });
   $$('.nav-item').forEach(function (n) { n.classList.toggle('active', n.dataset.nav === id); });
 
-  try { if (lang === 'ms') setTimeout(function () { var m = document.querySelector('.main'); msSwapDoc(m); msCollapseEnglish(document.getElementById('view-setup')); }, 60); } catch (e) { /* 忽略 */ }
+  try { if (lang === 'ms') setTimeout(function () { var m = document.querySelector('.main'); msSwapDoc(m); }, 60); } catch (e) { /* 忽略 */ }
 
   const meta = VIEW_META[id];
   $('#topbarTitle').textContent = t(meta.title);
@@ -4709,31 +4759,31 @@ async function revokeInvite(id) {
 function setupHtml() {
   const masked = isConfigured ? CFG_ANON.slice(0, 12) + '…' + CFG_ANON.slice(-6) : '—';
 
-  const steps = lang !== 'zh'
-    ? ['Create a project at supabase.com (Region: Singapore / Tokyo).',
-       'SQL Editor → New query → paste the SQL below → Run (Ctrl+Enter).',
-       'Project Settings → API → copy Project URL and anon public into the <b>two constants at the top of the file</b> (required when hosted on GitHub Pages, otherwise visitors see “not connected”).',
-       'Sign up the first account — it becomes super admin automatically.']
-    : ['在 supabase.com 新建项目，Region 建议选 Singapore / Tokyo。',
-       '左侧 SQL Editor → New query → 粘贴下方 SQL → Run（Ctrl+Enter），只需一次。',
-       'Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。',
-       '注册第一个账号 —— 自动成为超级管理员。'];
+  /* 全部文案走词典（zh / en / ms），不再按 lang 分叉 */
+  const steps = [
+    t('在 supabase.com 新建项目，Region 建议选 Singapore / Tokyo。'),
+    t('左侧 SQL Editor → New query → 粘贴下方 SQL → Run（Ctrl+Enter），只需一次。'),
+    t('Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。'),
+    t('注册第一个账号 —— 自动创建你的公司，你成为这家公司的管理员（company_admin），不是平台超级管理员。')
+  ];
 
-  const notes = lang !== 'zh'
-    ? [
-        '<b>Platform owner (super admin)</b>: manages companies and accounts only — <b>cannot see any tenant orders</b> (blocked by RLS).',
-        '<b>Company admin</b>: only its own company; invites members and manages that company’s orders.',
-        '<b>Member</b>: sees only their own orders and can create new ones.',
-        '<b>Isolation</b>: every query carries company_id, and Postgres RLS enforces it server-side.',
-        '<b>Security</b>: only the anon key belongs in the frontend — never the service_role key.'
-      ]
-    : [
-        '<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。',
-        '<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。',
-        '<b>普通用户</b>：只看到自己录入的订单，只能新建订单。',
-        '<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。',
-        '<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。'
-      ];
+  const notes = [
+    t('<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。'),
+    t('<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。'),
+    t('<b>普通用户</b>：只看到自己录入的订单，只能新建订单。'),
+    t('<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。'),
+    t('<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。'),
+    t('<b>平台超级管理员不会自动产生</b>：第一个注册的人只是自己公司的管理员；要指定站长，由站长本人在 Supabase → SQL Editor 执行一条 update 把自己的账号设为 super_admin（写法见 supabase-schema.sql 末尾的说明）。')
+  ];
+
+  const faq = [
+    t('<b>邀请是怎么走的：</b>「用户管理 → 邀请客服」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。'),
+    t('<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。'),
+    t('<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。'),
+    t('<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。'),
+    t('<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。'),
+    t('<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。')
+  ];
 
   return '' +
   '<div class="grid-2">' +
@@ -4761,7 +4811,7 @@ function setupHtml() {
     '</div>' +
     '<div class="card">' +
       '<div class="card-head"><h3>' + esc(t('上线四步')) + '</h3></div>' +
-      '<ol class="steps">' + steps.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' +
+      '<ol class="steps">' + steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
     '</div>' +
   '</div>' +
 
@@ -4781,24 +4831,7 @@ function setupHtml() {
     '<div class="card-body">' +
       '<div class="notes" style="padding:0">' +
         '<ul style="margin:0;padding-left:18px">' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>How does inviting work?</b> Users → Invite agent creates a 6-character code and a QR. Share the QR or the code on WhatsApp; the invitee enters the code at sign-up and joins the company automatically.'
-            : '<b>邀请是怎么走的：</b>「用户管理 → 邀请客服」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。') + '</li>' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>No email is sent.</b> Browsers cannot call a mail service, so nothing is emailed — you share the QR/code/link yourself.'
-            : '<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。') + '</li>' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>“Invite” fails.</b> ① you are not company admin ② your account has no company ③ the SQL was not run. Check the red error, then assign a company in Users.'
-            : '<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。') + '</li>' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>Signup rejected.</b> Supabase → Authentication → Providers → Email must be enabled; for internal use turn off “Confirm email”.'
-            : '<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。') + '</li>' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>Code not working?</b> Codes are single-use: once someone signs up with it the invite shows as used. Generate a new one.'
-            : '<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。') + '</li>' +
-          '<li>' + (lang !== 'zh'
-            ? '<b>“Confirm email” link opens localhost:</b> that is Supabase’s default Site URL. Either turn off Authentication → Providers → Email → “Confirm email” (recommended for invited staff), or set Authentication → URL Configuration → Site URL to your page URL (e.g. https://maxd331992.github.io/) and add it to Redirect URLs.'
-            : '<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。') + '</li>' +
+          faq.map(function (x) { return '<li>' + x + '</li>'; }).join('') +
         '</ul>' +
       '</div>' +
     '</div>' +
@@ -7163,14 +7196,12 @@ const MS_DOC = {
  "No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.": "Tiada kod jemputan? Hubungi pentadbir melalui WhatsApp — kod dijana di Pengguna → Jemput.",
  "Cannot see orders? Your account may have no company assigned yet.": "Tidak nampak pesanan? Akaun anda mungkin belum ditetapkan kepada syarikat.",
  "Need a new company or role change? Only super admins can do it.": "Perlu syarikat baharu atau tukar peranan? Hanya pentadbir platform boleh melakukannya.",
- "Hi ": "Hai ",
- "Create a project at supabase.com, Region: Singapore / Tokyo (recommended).": "Cipta projek di supabase.com, Region: Singapore / Tokyo (disyorkan).",
- "Database initialisation SQL": "SQL inisialisasi pangkalan data"
+ "Hi ": "Hai "
 };
 
 
-/* 马来文长文案替换：这些句子直接写在渲染代码里，没进词典，
-   所以在 ms 模式下按【整段精确匹配】替换一次 */
+/* 马来文长文案替换：客服页等少数句子仍直接写在渲染代码里、没进词典，
+   所以 ms 模式下按【整段精确匹配】替换一次（系统配置页已全部走词典，不再依赖这里） */
 function msSwapDoc(root) {
   if (lang !== 'ms' || !root) return;
   const map = MS_DOC;
@@ -7191,27 +7222,6 @@ function msSwapDoc(root) {
   });
 }
 
-
-/* 马来文模式下，还没翻译的长段英文说明统一折叠成一句马来文提示 */
-function msCollapseEnglish(root) {
-  if (lang !== 'ms' || !root) return;
-  const nodes = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-  let n;
-  while ((n = walker.nextNode())) {
-    const s = (n.nodeValue || '').trim();
-    if (s.length < 55) continue;
-    if (/[\u4e00-\u9fa5]/.test(s)) continue;                                     // 中文不处理
-    if (!/[A-Za-z]{4}/.test(s)) continue;
-    if (/\b(dan|yang|untuk|dengan|tidak|sila|anda|adalah)\b/i.test(s)) continue;  // 已经是马来文
-    var letters = s.replace(/[^A-Za-z]/g, '').length;
-    if (letters / s.length < 0.6) continue;                                       // 不像英文句子
-    nodes.push(n);
-  }
-  if (!nodes.length) return;
-  nodes[0].nodeValue = 'Terjemahan Bahasa Melayu untuk bahagian ini belum tersedia — sila rujuk versi Inggeris (English).';
-  for (let i = 1; i < nodes.length; i++) nodes[i].nodeValue = '';
-}
 
 function bindEvents() {
   document.addEventListener('click', function (event) {
