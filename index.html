@@ -342,6 +342,18 @@ code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
 .topbar-actions{display:flex;align-items:center;gap:8px}
 #btnMenu{display:none}
 
+.bell-btn{position:relative}
+.bell-dot{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:9px;background:#f43f5e;color:#fff;font-size:9.5px;font-weight:800;font-style:normal;display:grid;place-items:center;padding:0 3px}
+.bell-panel{position:absolute;top:52px;right:16px;width:min(360px,calc(100vw - 24px));max-height:60vh;overflow:auto;z-index:90;
+  background:linear-gradient(180deg,rgba(20,26,42,.99),rgba(10,14,24,.99));border:1px solid rgba(34,211,238,.25);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.6);padding:8px}
+.bell-item{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:9px 10px;cursor:pointer;color:var(--ink)}
+.bell-item:hover{background:rgba(255,255,255,.05)}
+.bell-item.unread{background:rgba(34,211,238,.07)}
+.bell-kind{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);color:#9fb0d0;white-space:nowrap}
+.bell-kind.new{background:rgba(34,211,238,.16);color:#7ce9ff}
+.bell-kind.shipped{background:rgba(52,211,153,.16);color:#6ee7b7}
+.bell-main{font-size:12.5px;font-weight:700}
+.bell-time{grid-column:2;font-size:10.5px;color:var(--muted)}
 .lang-switch{
   display:inline-flex;align-items:center;gap:2px;padding:3px;border-radius:10px;
   background:rgba(255,255,255,.05);border:1px solid var(--line);
@@ -960,6 +972,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
           <div class="user-role" id="userRole">公司管理员</div>
         </div>
       </div>
+      <button class="btn dark-ghost block sm" style="margin-bottom:8px" data-act="my-profile" data-i18n="我的资料">我的资料</button>
       <button class="btn dark-ghost block sm" style="margin-bottom:8px" data-act="change-pw" data-i18n="修改密码">修改密码</button>
       <button class="btn dark-ghost block sm" data-act="logout" data-i18n="退出登录">退出登录</button>
     </div>
@@ -975,6 +988,11 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
         <div class="topbar-sub" id="topbarSub">管理本公司成员与角色</div>
       </div>
       <div class="topbar-actions" id="topbarActions"></div>
+      <button class="btn icon ghost bell-btn" id="btnBell" type="button" data-act="bell-toggle" title="notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <i class="bell-dot" id="bellDot" hidden>0</i>
+      </button>
+      <div class="bell-panel" id="bellPanel" hidden><div id="bellList"></div></div>
       <div class="lang-switch" data-lang-switch="">
         <button type="button" data-act="lang" data-lang="zh" class="on">中</button>
         <button type="button" data-act="lang" data-lang="en">EN</button>
@@ -1815,7 +1833,7 @@ const EN = {
   "选择 Excel 文件": "Choose an Excel file",
   "支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面": "Supports .xlsx / .xls / .csv — or just paste the rows below",
   "或粘贴文本": "Or paste text",
-  "列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Column order: name, price, unit, category, stock, description. Price required, rest optional.",
+  "列顺序：名称, 价格, 单位, 分类, 库存, 简介, 英文名, 马来文名。只有名称和价格必填。": "Column order: name, price, unit, category, stock, description. Price required, rest optional.",
   "正在解析…": "Reading file…",
   "Excel 读取失败，可以直接粘贴内容": "Could not read the file — paste the rows instead",
   "确认导入": "Confirm import",
@@ -1826,6 +1844,56 @@ const EN = {
   "只预览前 20 行，共 {n} 行": "Showing the first 20 of {n} rows",
   "没有可导入的行，检查一下格式": "Nothing to import — check the format",
   "公司总数": "Companies",
+  "英文名（可选）": "English name (optional)",
+  "马来文名（可选）": "Malay name (optional)",
+  "英文简介（可选）": "English description (optional)",
+  "马来文简介（可选）": "Malay description (optional)",
+  "可能重复的订单": "Possible duplicate order",
+  "{c} · {p} · {a} 在 5 分钟内已经录过一次了，还要再建一笔吗？": "{c} · {p} · {a} was already entered within 5 minutes. Create another one?",
+  "继续保存": "Save anyway",
+  "金额比平时高很多": "Amount looks unusually high",
+  "这笔 {a}，该客户历史平均 {b}（约 {x} 倍）。确认金额没写错吗？": "This order is {a} vs the customer average of {b} (~{x}×). Is the amount correct?",
+  "金额无误": "Amount is correct",
+  "还能卖 {d} 天": "{d} days left",
+  "高风险": "High risk",
+  "已通知客户，请通知老板": "Customer notified — now notify the boss",
+  "公司电话没填，请先在公司资料里填电话": "No company phone set — add it in the company profile first",
+  "库存不足": "Not enough stock",
+  "要怎么办？你来定": "What do you want to do?",
+  "{n} 缺货了": "{n} is out of stock",
+  "先不下单": "Do not order now",
+  "{n}只剩 {s}{u}，你要 {d}{u}，少 {k}{u}": "{n} only has {s}{u}, you need {d}{u} — short {k}{u}",
+  "先按现有 {s}{u} 下单": "Order {s}{u} available",
+  "照原数量 {d}{u} 下单（欠货）": "Order {d}{u} as planned (backorder)",
+  "库存为 0，不能下单": "Stock is 0 — cannot create the order",
+  "{n} 库存为 0，不能下单": "{n} is out of stock — cannot create the order",
+  "{n} 只剩 {s}{u}，你要 {d}{u}": "{n} only has {s}{u}, you need {d}{u}",
+  "订单已保存，但明细没写进去，库存没扣 —— 请到商品页手动调库存": "Order saved, but the line item failed — stock was NOT deducted. Adjust stock manually in Products.",
+  "批次 / 保质期": "Batches / expiry",
+  "批次": "Batches",
+  "批号": "Lot no.",
+  "入库日期": "Received",
+  "入库": "Received",
+  "到期日": "Expiry",
+  "到期": "Expiry",
+  "保存批次": "Save batch",
+  "批次已保存": "Batch saved",
+  "还没有批次记录": "No batches yet",
+  "剩 {d} 天": "{d} days left",
+  "已过期 {d} 天": "expired {d} days ago",
+  "{n} 已过期 {d} 天": "{n} expired {d} days ago",
+  "{n} 还剩 {d} 天到期": "{n} expires in {d} days",
+  "老板电话没填：请在个人资料填手机号，或在公司资料填公司电话": "Boss phone missing — add a mobile in the profile, or a company phone",
+  "我的资料": "My profile",
+  "手机号": "Mobile",
+  "填了手机号，发货后通知老板会自动用它": "Used automatically when notifying the boss after shipping",
+  "已保存": "Saved",
+  "保质期（天）": "Shelf life (days)",
+  "批次已保存，库存已增加": "Batch saved — stock increased",
+  "批次查询失败，出库未挂批次": "Batch lookup failed — shipment not linked to a batch",
+  "批次扣减失败，请手动核对库存": "Batch deduction failed — check stock manually",
+  "批次数量不够，还有 {n} 没有挂批次（可手动补）": "Not enough batch quantity — {n} left unlinked",
+  "已按到期日拆成 {n} 条明细（先进先出）": "Split into {n} lines by expiry date (FIFO)",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
@@ -2368,7 +2436,7 @@ const MS = {
   "选择 Excel 文件": "Pilih fail Excel",
   "支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面": "Menyokong .xlsx / .xls / .csv — atau tampal baris di bawah",
   "或粘贴文本": "Atau tampal teks",
-  "列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Turutan lajur: nama, harga, unit, kategori, stok, penerangan. Harga wajib.",
+  "列顺序：名称, 价格, 单位, 分类, 库存, 简介, 英文名, 马来文名。只有名称和价格必填。": "Turutan lajur: nama, harga, unit, kategori, stok, penerangan. Harga wajib.",
   "正在解析…": "Membaca fail…",
   "Excel 读取失败，可以直接粘贴内容": "Fail tidak dapat dibaca — tampal baris secara manual",
   "确认导入": "Sahkan import",
@@ -2379,6 +2447,56 @@ const MS = {
   "只预览前 20 行，共 {n} 行": "Memaparkan 20 baris pertama daripada {n}",
   "没有可导入的行，检查一下格式": "Tiada baris untuk diimport — semak format",
   "公司总数": "Syarikat",
+  "英文名（可选）": "Nama Inggeris (pilihan)",
+  "马来文名（可选）": "Nama Melayu (pilihan)",
+  "英文简介（可选）": "Penerangan Inggeris (pilihan)",
+  "马来文简介（可选）": "Penerangan Melayu (pilihan)",
+  "可能重复的订单": "Pesanan mungkin berulang",
+  "{c} · {p} · {a} 在 5 分钟内已经录过一次了，还要再建一笔吗？": "{c} · {p} · {a} telah direkod dalam 5 minit. Cipta satu lagi?",
+  "继续保存": "Terus simpan",
+  "金额比平时高很多": "Jumlah luar biasa tinggi",
+  "这笔 {a}，该客户历史平均 {b}（约 {x} 倍）。确认金额没写错吗？": "Pesanan ini {a} berbanding purata {b} (~{x}×). Betul ke jumlahnya?",
+  "金额无误": "Jumlah betul",
+  "还能卖 {d} 天": "Baki {d} hari",
+  "高风险": "Risiko tinggi",
+  "已通知客户，请通知老板": "Pelanggan dimaklumkan — maklumkan bos sekarang",
+  "公司电话没填，请先在公司资料里填电话": "Telefon syarikat belum diisi — isi dalam profil syarikat dahulu",
+  "库存不足": "Stok tidak cukup",
+  "要怎么办？你来定": "Apa yang anda mahu?",
+  "{n} 缺货了": "{n} kehabisan stok",
+  "先不下单": "Jangan buat pesanan",
+  "{n}只剩 {s}{u}，你要 {d}{u}，少 {k}{u}": "{n} tinggal {s}{u}, anda perlu {d}{u} — kurang {k}{u}",
+  "先按现有 {s}{u} 下单": "Pesan {s}{u} yang ada",
+  "照原数量 {d}{u} 下单（欠货）": "Pesan {d}{u} seperti dirancang (tunggak)",
+  "库存为 0，不能下单": "Stok 0 — pesanan tidak boleh dibuat",
+  "{n} 库存为 0，不能下单": "{n} kehabisan stok — pesanan tidak boleh dibuat",
+  "{n} 只剩 {s}{u}，你要 {d}{u}": "{n} tinggal {s}{u}, anda perlu {d}{u}",
+  "订单已保存，但明细没写进去，库存没扣 —— 请到商品页手动调库存": "Pesanan disimpan tetapi baris item gagal — stok TIDAK ditolak. Laras stok secara manual.",
+  "批次 / 保质期": "Batch / luput",
+  "批次": "Batch",
+  "批号": "No. lot",
+  "入库日期": "Tarikh masuk",
+  "入库": "Masuk",
+  "到期日": "Luput",
+  "到期": "Luput",
+  "保存批次": "Simpan batch",
+  "批次已保存": "Batch disimpan",
+  "还没有批次记录": "Tiada rekod batch",
+  "剩 {d} 天": "baki {d} hari",
+  "已过期 {d} 天": "luput {d} hari lalu",
+  "{n} 已过期 {d} 天": "{n} luput {d} hari lalu",
+  "{n} 还剩 {d} 天到期": "{n} luput dalam {d} hari",
+  "老板电话没填：请在个人资料填手机号，或在公司资料填公司电话": "Telefon bos tiada — isi nombor mudah alih dalam profil atau telefon syarikat",
+  "我的资料": "Profil saya",
+  "手机号": "Nombor mudah alih",
+  "填了手机号，发货后通知老板会自动用它": "Digunakan automatik semasa memaklumkan bos",
+  "已保存": "Disimpan",
+  "保质期（天）": "Jangka hayat (hari)",
+  "批次已保存，库存已增加": "Batch disimpan — stok ditambah",
+  "批次查询失败，出库未挂批次": "Carian batch gagal — penghantaran tidak dipautkan",
+  "批次扣减失败，请手动核对库存": "Potongan batch gagal — semak stok secara manual",
+  "批次数量不够，还有 {n} 没有挂批次（可手动补）": "Kuantiti batch tidak cukup — {n} belum dipautkan",
+  "已按到期日拆成 {n} 条明细（先进先出）": "Dipecahkan kepada {n} baris ikut tarikh luput (FIFO)",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -2493,7 +2611,7 @@ const ICONS = {
 };
 
 /* 客服联系方式（改这里即可换人/换号） */
-const BUILD = 'v2026-11-22.1320';
+const BUILD = 'v2026-11-22.1835';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -3291,6 +3409,7 @@ async function doRegister(event) {
 }
 
 async function doLogout() {
+  try { stopBell(); } catch (e) { }
   const ok = await confirmAction({
     title: t('退出登录'),
     text: t('确定要退出当前账号吗？'),
@@ -3354,6 +3473,7 @@ async function enterApp() {
     $('#blockedScreen').hidden = true;
     $('#appShell').hidden = false;
 
+    startBell();
     await switchView(isCustomer() ? 'menu' : 'dashboard');
   } catch (e) {
     console.error(e);
@@ -3431,6 +3551,8 @@ async function switchView(id) {
   state.view = id;
   $$('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + id); });
   $$('.nav-item').forEach(function (n) { n.classList.toggle('active', n.dataset.nav === id); });
+
+  try { if (lang === 'ms') setTimeout(function () { var m = document.querySelector('.main'); msSwapDoc(m); msCollapseEnglish(document.getElementById('view-setup')); }, 60); } catch (e) { /* 忽略 */ }
 
   const meta = VIEW_META[id];
   $('#topbarTitle').textContent = t(meta.title);
@@ -3905,6 +4027,9 @@ function renderOrders() {
     const s = STATUS[o.status] || STATUS.pending;
     const ops = [];
     if (canEditOrder(o)) {
+      if (o.status !== 'shipped' && o.status !== 'completed' && o.status !== 'cancelled') {
+        ops.push('<button class="link" type="button" data-act="ship-order" data-id="' + o.id + '">' + esc(t('确认已发货')) + '</button>');
+      }
       ops.push('<button class="link" type="button" data-act="edit-order" data-id="' + o.id + '">' + esc(t('编辑')) + '</button>');
       ops.push('<button class="link danger" type="button" data-act="del-order" data-id="' + o.id + '">' + esc(t('删除')) + '</button>');
     }
@@ -3978,11 +4103,13 @@ function openOrderModal(order) {
     '<form id="orderForm" data-id="' + (order ? order.id : '') + '" novalidate>' +
       '<div class="form-grid">' +
         '<label class="field"><span>' + esc(t('客户姓名')) + '<em>*</em></span>' +
-          '<input class="input" name="customer_name" required maxlength="50" value="' + esc(order ? order.customer_name : '') + '"></label>' +
+          '<input class="input" name="customer_name" list="dlCustomers" autocomplete="off" required maxlength="50" value="' + esc(order ? order.customer_name : '') + '"></label>' +
+        '<datalist id="dlCustomers">' + (state.hist.customers || []).map(function (c) { return '<option value="' + esc(c.name) + '">' + esc(c.phone || '') + '</option>'; }).join('') + '</datalist>' +
         '<label class="field"><span>' + esc(t('联系方式')) + '</span>' +
           '<input class="input" name="customer_phone" maxlength="40" value="' + esc(order ? order.customer_phone : '') + '"></label>' +
         '<label class="field span-2"><span>' + esc(t('商品名称')) + '<em>*</em></span>' +
-          '<input class="input" name="product_name" required maxlength="80" value="' + esc(order ? order.product_name : '') + '"></label>' +
+          '<input class="input" name="product_name" list="dlProducts" autocomplete="off" required maxlength="80" value="' + esc(order ? order.product_name : '') + '"></label>' +
+        '<datalist id="dlProducts">' + (state.hist.products || []).map(function (x) { return '<option value="' + esc(x) + '"></option>'; }).join('') + '</datalist>' +
         '<label class="field"><span>' + esc(t('数量')) + '<em>*</em></span>' +
           '<input class="input" name="quantity" type="number" min="0" step="1" required value="' + esc(order ? order.quantity : 1) + '"></label>' +
         '<label class="field"><span>' + esc(t('金额')) + '<em>*</em> <b class="cur-tag" id="amtCur">' +
@@ -4009,6 +4136,38 @@ function openOrderModal(order) {
         '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
       '</div></form>');
   $('#orderForm').addEventListener('submit', saveOrder);
+
+  /* 智能补全：客户名 → 带出电话；客户+商品 → 按【上次单价 × 这次数量】推算金额 */
+  loadHistory().then(function () {
+    const cn = $('#orderForm [name=customer_name]');
+    const pn = $('#orderForm [name=product_name]');
+    const ph = $('#orderForm [name=customer_phone]');
+    const am = $('#orderForm [name=amount]');
+    const qt = $('#orderForm [name=quantity]');
+    if (!cn || !pn) return;
+
+    function applySuggestion() {
+      const c = findCustomer(cn.value);
+      if (c && c.phone && ph && !ph.value) ph.value = c.phone;
+      const key = String(cn.value || '').trim().toLowerCase() + '|' + String(pn.value || '').trim().toLowerCase();
+      const rec = (state.hist.lastPrice || {})[key];
+      if (!rec || !am) return;
+      if (Number(am.value) && Number(am.value) > 0) return;      // 手填了就不覆盖
+      const qty = Number(qt && qt.value) || 1;
+      if (Math.abs(qty - rec.qty) > 1e-6) {
+        /* 数量不一样：不自动填，只提示单价，避免把钱填错 */
+        toast(tf('上次单价 {u}；这次数量 {q} 与上次 {p} 不同，金额请自己确认', {
+          u: money(rec.unit, companyCurrency(myCompanyId())), q: qty, p: rec.qty
+        }), 'info');
+        return;
+      }
+      am.value = Math.round(rec.unit * qty * 100) / 100;
+    }
+
+    cn.addEventListener('change', applySuggestion);
+    pn.addEventListener('change', function () { if (am) am.value = ''; applySuggestion(); });
+    if (qt) qt.addEventListener('change', function () { if (am) am.value = ''; applySuggestion(); });
+  });
 
   /* 超级管理员切换公司时，金额后面的货币符号跟着变 */
   const cSel = $('#orderForm select[name=company_id]');
@@ -4051,6 +4210,50 @@ async function saveOrder(event) {
   const companyId = isSuper() ? form.company_id.value : myCompanyId();
   if (!companyId) { errBox.textContent = t('请选择公司'); return; }
 
+  /* 库存检查：不够就弹三选一，老板决定 */
+  await loadStockMap(true);
+  if (!state.oversell) {
+    const r = checkStock(productName, quantity);
+    if (r && r.stock <= 0) {
+      errBox.textContent = tf('{n} 库存为 0，不能下单', { n: r.p.name });
+      alertBox(t('库存不足'), tf('{n} 库存为 0，不能下单', { n: r.p.name }));
+      return;
+    }
+    if (r) {
+      stockWarnModal(r,
+        function () { form.quantity.value = r.stock; state.oversell = false; form.requestSubmit(); },
+        function () { state.oversell = true; form.requestSubmit(); },
+        function () { closeModal(); });
+      return;
+    }
+  }
+  state.oversell = false;
+
+  /* 友好提示：重复单 / 金额异常 —— 只提示，人决定要不要继续 */
+  try {
+    await loadHistory();
+    const dup = findDuplicate(customerName, productName, amount);
+    if (dup) {
+      const okDup = await confirmAction({
+        title: t('可能重复的订单'),
+        text: tf('{c} · {p} · {a} 在 5 分钟内已经录过一次了，还要再建一笔吗？',
+          { c: customerName, p: productName, a: money(amount, companyCurrency(companyId)) }),
+        okText: t('继续保存')
+      });
+      if (!okDup) return;
+    }
+    const ab = isAmountAnomaly(customerName, amount);
+    if (ab) {
+      const okAmt = await confirmAction({
+        title: t('金额比平时高很多'),
+        text: tf('这笔 {a}，该客户历史平均 {b}（约 {x} 倍）。确认金额没写错吗？',
+          { a: money(amount, companyCurrency(companyId)), b: money(ab.avg, companyCurrency(companyId)), x: ab.times.toFixed(1) }),
+        okText: t('金额无误')
+      });
+      if (!okAmt) return;
+    }
+  } catch (e) { /* 提示层失败不影响保存 */ }
+
   const payload = {
     company_id: companyId,
     user_id: state.me.id,
@@ -4072,10 +4275,36 @@ async function saveOrder(event) {
   try {
     let res;
     if (id) res = await sb.from('orders').update(payload).eq('id', id);
-    else { payload.user_id = state.me.id; res = await sb.from('orders').insert(payload); }
+    else { payload.user_id = state.me.id; res = await sb.from('orders').insert(payload).select(); }
     if (res.error) throw res.error;
 
     closeModal();
+
+    /* 新建的手动单补一条明细，让库存触发器自动扣减 */
+    if (!id) {
+      try {
+        const row = (res.data && res.data[0]) || null;
+        const prod = findProductByName(productName);
+        if (row && row.id && prod) {
+          const q = Number(payload.quantity) || 1;
+          const itRes = await sb.from('order_items').insert({
+            order_id: row.id,
+            product_id: prod.id,
+            product_name: payload.product_name,
+            price: Math.round((Number(payload.amount) || 0) / (q || 1) * 100) / 100,
+            quantity: q,
+            amount: Number(payload.amount) || 0
+          }).select();
+          const itRow = (itRes.data && itRes.data[0]) || null;
+          if (itRow && itRow.id) await allocateBatches(itRow.id, prod.id, q);
+          loadStockMap(true).catch(function () {});
+        }
+      } catch (e) {
+        toast(t('订单已保存，但明细没写进去，库存没扣 —— 请到商品页手动调库存'), 'error');
+        console.error('order_items insert failed', e);
+      }
+    }
+
     toast(t(id ? '订单已更新' : '订单已创建'), 'ok');
     if (state.view === 'orders') await loadOrders(id ? state.orders.page : 0);
     refreshDashboard().catch(function () { /* 静默 */ });
@@ -5037,8 +5266,10 @@ function renderCredit() {
     const open = !!state.creditOpen[g.key];
     const overdueDays = g.earliest && g.earliest < todayStr()
       ? Math.floor((new Date(todayStr()) - new Date(g.earliest)) / 86400000) : 0;
+    const risk = (!g.overdue ? 0 : g.overdue) + (overdueDays > 20 ? 2 : 0);
     const rows = ['<tr>' +
       '<td class="credit-name"><strong>' + esc(g.name) + '</strong>' +
+        (risk >= 2 ? '<div class="cell-sub overdue">' + esc(t('高风险')) + '</div>' : '') +
         (g.phone ? '<div class="cell-sub">' + esc(g.phone) + '</div>' : '') + '</td>' +
       '<td class="num strong">' + money(g.owed, cur) + '</td>' +
       '<td class="num">' + num(g.count) + '</td>' +
@@ -5096,6 +5327,20 @@ state.menuQ = '';
 state.menuCat = '';
 
 function isCustomer() { return !!(state.me && state.me.role === 'user'); }
+
+/* 商品多名：按界面语言优先取，缺了就回落主名 */
+function productName(p) {
+  if (!p) return '';
+  if (lang === 'en' && p.name_en) return p.name_en;
+  if (lang === 'ms' && p.name_ms) return p.name_ms;
+  return p.name || '';
+}
+function productDesc(p) {
+  if (!p) return '';
+  if (lang === 'en' && p.desc_en) return p.desc_en;
+  if (lang === 'ms' && p.desc_ms) return p.desc_ms;
+  return p.description || '';
+}
 /* 手动下单按钮只给员工看 */
 function syncMenuTools() { const b = $('#menuQuickOrder'); if (b) b.hidden = isCustomer(); }
 
@@ -5122,6 +5367,7 @@ async function loadMenu() {
   if (res.error) throw res.error;
 
   state.products = res.data || [];
+  computeStockDays().then(function () { paintStockDays(); });
 
   const cats = {};
   state.products.forEach(function (p) { if (p.category) cats[p.category] = 1; });
@@ -5205,8 +5451,8 @@ function renderMenu() {
         (p.image_url ? img : esc(t('暂无图片'))) +
       '</div>' +
       '<div class="p-body">' +
-        '<div class="p-name">' + esc(p.name) + '</div>' +
-        '<div class="p-desc">' + esc(p.description || '') + '</div>' +
+        '<div class="p-name">' + esc(productName(p)) + '</div>' +
+        '<div class="p-desc">' + esc(productDesc(p)) + '</div>' +
         '<div class="p-foot">' +
           '<div><span class="p-price">' + money(p.price, cur) + '</span>' +
             (p.unit ? '<span class="p-unit">/ ' + esc(p.unit) + '</span>' : '') + '</div>' +
@@ -5263,7 +5509,7 @@ function openCheckout() {
   const rows = Object.keys(state.cart).map(function (id) {
     const p = state.products.filter(function (x) { return x.id === id; })[0];
     const qty = state.cart[id];
-    return '<tr><td>' + esc(p ? p.name : '') + '</td><td class="num">' + qty + '</td>' +
+    return '<tr><td>' + esc(p ? productName(p) : '') + '</td><td class="num">' + qty + '</td>' +
       '<td class="num">' + money((p ? Number(p.price) : 0) * qty, cur) + '</td></tr>';
   }).join('');
 
@@ -5313,13 +5559,32 @@ async function submitCheckout(event) {
   if (!name) { errBox.textContent = t('请填写客户姓名'); return; }
   if (!cartCount()) { errBox.textContent = t('购物车是空的'); return; }
 
+  /* 逐样查库存：不够就不让下单 */
+  try {
+    await loadStockMap(true);          /* 每次都重新查库，不用页面旧数据 */
+    const bad = [];
+    Object.keys(state.cart).forEach(function (id) {
+      const p = state.products.filter(function (x) { return x.id === id; })[0];
+      if (!p) return;
+      if (p.stock === null || p.stock === undefined) return;
+      const need = Number(state.cart[id]) || 0;
+      if (need > Number(p.stock)) bad.push({ name: p.name, stock: Number(p.stock), need: need, unit: p.unit || '' });
+    });
+    if (bad.length) {
+      alertBox(t('库存不足'), bad.map(function (b) {
+        return tf('{n} 只剩 {s}{u}，你要 {d}{u}', { n: b.name, s: b.stock, d: b.need, u: b.unit ? ' ' + b.unit : '' });
+      }).join('；'));
+      return;
+    }
+  } catch (e) { /* 查不到就不拦 */ }
+
   const cur = (state.company && state.company.currency) || 'SGD';
   const items = Object.keys(state.cart).map(function (id) {
     const p = state.products.filter(function (x) { return x.id === id; })[0];
     const qty = state.cart[id];
     return {
       product_id: id,
-      product_name: p ? p.name : '',
+      product_name: p ? productName(p) : '',
       price: p ? Number(p.price) : 0,
       quantity: qty,
       amount: Math.round((p ? Number(p.price) : 0) * qty * 100) / 100
@@ -5368,6 +5633,15 @@ async function submitCheckout(event) {
       };
     }));
     if (itemsRes.error) throw itemsRes.error;
+    /* 取回刚插入的明细 id，逐条挂批次 */
+    try {
+      const back = await sb.from('order_items').select('id,product_id,quantity').eq('order_id', orderId);
+      if (!back.error && back.data) {
+        for (const row2 of back.data) {
+          await allocateBatches(row2.id, row2.product_id, row2.quantity);
+        }
+      }
+    } catch (e) { }
 
     closeModal();
     state.cart = {};
@@ -5413,6 +5687,49 @@ async function loadProducts() {
   if (lowN && !state.lowToastShown) { state.lowToastShown = true; toast(tf('{n} 个商品库存不足 5', { n: lowN }), 'warn'); }
 }
 
+
+/* 库存还能卖几天：近 30 天日均销量（纯前端，仅提示） */
+state.stockDays = {};
+async function computeStockDays() {
+  if (!sb || !state.me || isSuper()) return;
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const res = await sb.from('order_items')
+      .select('product_id,quantity,orders!inner(company_id,ordered_at)')
+      .eq('orders.company_id', myCompanyId())
+      .gte('orders.ordered_at', since)
+      .limit(2000);
+    if (res.error) return;
+    const sold = {};
+    (res.data || []).forEach(function (r) {
+      if (!r.product_id) return;
+      sold[r.product_id] = (sold[r.product_id] || 0) + (Number(r.quantity) || 0);
+    });
+    const out = {};
+    (state.products || []).forEach(function (p) {
+      const s = sold[p.id] || 0;
+      if (!s || p.stock === null || p.stock === undefined) return;
+      const perDay = s / 30;
+      out[p.id] = perDay > 0 ? (Number(p.stock) / perDay) : null;
+    });
+    state.stockDays = out;
+  } catch (e) { /* 忽略 */ }
+}
+
+function paintStockDays() {
+  if (!state.stockDays) return;
+  (state.products || []).forEach(function (p) {
+    const d = state.stockDays[p.id];
+    if (d === undefined || d === null) return;
+    const row = document.querySelector('[data-act="product-edit"][data-id="' + p.id + '"]');
+    const td = row ? row.closest('tr').children[6] : null;   // 状态列前一位
+    if (!td) return;
+    const days = Math.floor(d);
+    td.innerHTML = td.innerHTML + '<div class="cell-sub' + (days < 7 ? ' overdue' : '') + '">' +
+      tf('还能卖 {d} 天', { d: days }) + '</div>';
+  });
+}
+
 function renderProducts() {
   const kw = (state.pSearch || '').toLowerCase().trim();
   const list = kw
@@ -5447,16 +5764,18 @@ function renderProducts() {
       : '<div class="p-thumb-ph">' + esc(t('无图')) + '</div>';
     return '<tr>' +
       '<td>' + thumb + '</td>' +
-      '<td><div class="cell-main">' + esc(p.name) + '</div>' +
-        (p.description ? '<div class="cell-sub">' + esc(p.description.slice(0, 40)) + '</div>' : '') + '</td>' +
+      '<td><div class="cell-main">' + esc(productName(p)) + '</div>' +
+        (productDesc(p) ? '<div class="cell-sub">' + esc(productDesc(p).slice(0, 40)) + '</div>' : '') + '</td>' +
       '<td class="muted">' + esc(p.category || '—') + '</td>' +
       '<td class="num strong">' + money(p.price, cur) + '</td>' +
       '<td class="muted">' + esc(p.unit || '—') + '</td>' +
       '<td class="num">' + (p.stock === null || p.stock === undefined
         ? '<span class="muted">—</span>'
-        : (Number(p.stock) <= 5
-            ? '<span class="low-stock">' + num(p.stock) + '</span>'
-            : num(p.stock))) + '</td>' +
+        : (Number(p.stock) <= 0
+            ? '<span class="low-stock">' + esc(t('缺货')) + '</span>'
+            : (Number(p.stock) <= 5
+                ? '<span class="low-stock">' + num(p.stock) + '</span>'
+                : num(p.stock)))) + '</td>' +
       '<td class="num muted">' + (function () {
         const s = state.stockStats[p.id];
         if (!s) return '—';
@@ -5466,12 +5785,14 @@ function renderProducts() {
       '<td class="ops">' +
         '<button class="link" type="button" data-act="product-edit" data-id="' + p.id + '">' + esc(t('编辑')) + '</button>' +
         '<button class="link" type="button" data-act="product-stock" data-id="' + p.id + '">' + esc(t('调库存')) + '</button>' +
+        '<button class="link" type="button" data-act="product-batch" data-id="' + p.id + '">' + esc(t('批次')) + '</button>' +
         '<button class="link" type="button" data-act="product-toggle" data-id="' + p.id + '">' + esc(t(p.is_active ? '下架' : '上架')) + '</button>' +
         '<button class="link danger" type="button" data-act="product-del" data-id="' + p.id + '">' + esc(t('删除')) + '</button>' +
       '</td></tr>';
   }).join('') + '</tbody>';
 
   $('#productsTable').innerHTML = head + body;
+  paintStockDays();
 }
 
 /* 调库存：改成某个数，差额自动记一条流水 */
@@ -5572,12 +5893,22 @@ function openProductModal(p) {
           '<input class="input" name="name" required maxlength="60" value="' + esc(editing ? p.name : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('分类')) + '</span>' +
           '<select class="select" name="category">' + categoryOptions(editing ? p.category : '') + '</select></label>' +
+        '<label class="field"><span>' + esc(t('英文名（可选）')) + '</span>' +
+          '<input class="input" name="name_en" maxlength="60" placeholder="e.g. Mackerel" value="' + esc(editing ? (p.name_en || '') : '') + '"></label>' +
+        '<label class="field"><span>' + esc(t('马来文名（可选）')) + '</span>' +
+          '<input class="input" name="name_ms" maxlength="60" placeholder="cth. Ikan Tenggiri" value="' + esc(editing ? (p.name_ms || '') : '') + '"></label>' +
+        '<label class="field span-2"><span>' + esc(t('英文简介（可选）')) + '</span>' +
+          '<input class="input" name="desc_en" maxlength="200" value="' + esc(editing ? (p.desc_en || '') : '') + '"></label>' +
+        '<label class="field span-2"><span>' + esc(t('马来文简介（可选）')) + '</span>' +
+          '<input class="input" name="desc_ms" maxlength="200" value="' + esc(editing ? (p.desc_ms || '') : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('新分类（可选）')) + '</span>' +
           '<input class="input" name="category_new" maxlength="30" placeholder="' + esc(t('填了就新建这个分类')) + '"></label>' +
         '<label class="field"><span>' + esc(t('价格')) + ' (' + esc(curSymbol(cur)) + ')<em>*</em></span>' +
           '<input class="input" name="price" type="number" min="0" step="0.01" required value="' + esc(editing ? p.price : 0) + '"></label>' +
         '<label class="field"><span>' + esc(t('单位')) + '</span>' +
           '<input class="input" name="unit" maxlength="10" placeholder="件 / 箱 / kg / 次" value="' + esc(editing ? (p.unit || '') : '') + '"></label>' +
+        '<label class="field"><span>' + esc(t('保质期（天）')) + '</span>' +
+          '<input class="input" name="shelf_life_days" type="number" min="0" step="1" value="' + esc(editing && p.shelf_life_days ? p.shelf_life_days : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('库存')) + '</span>' +
           '<input class="input" name="stock" type="number" min="0" step="1" value="' + esc(editing && p.stock !== null && p.stock !== undefined ? p.stock : '') + '"></label>' +
         '<label class="field"><span>' + esc(t('上架状态')) + '</span>' +
@@ -5663,7 +5994,12 @@ async function saveProduct(event) {
     price: price,
     unit: form.unit.value.trim() || null,
     category: (form.category_new && form.category_new.value.trim()) || form.category.value || null,
+    name_en: (form.name_en && form.name_en.value.trim()) || null,
+    name_ms: (form.name_ms && form.name_ms.value.trim()) || null,
+    desc_en: (form.desc_en && form.desc_en.value.trim()) || null,
+    desc_ms: (form.desc_ms && form.desc_ms.value.trim()) || null,
     stock: form.stock.value === '' ? null : Number(form.stock.value),
+    shelf_life_days: (form.shelf_life_days && form.shelf_life_days.value !== '') ? Number(form.shelf_life_days.value) : null,
     image_url: form.image_url.value || null,
     is_active: form.is_active.value === 'true'
   };
@@ -6020,6 +6356,641 @@ function showOrderSuccess(orderNo, total, cur) {
 }
 
 
+
+/* ================= 纯前端智能提示（不改订单、不拦截、不自动发送） ================= */
+state.hist = state.hist || { customers: [], products: [], lastPrice: {}, avg: {}, loaded: false };
+
+async function loadHistory(force) {
+  if (!sb || !state.me || isSuper()) return;
+  if (state.hist.loaded && !force) return;
+
+  const custMap = {}, prodSet = {}, lastPrice = {}, agg = {};
+  let rows = [];
+
+  /* ① 订单头：客户、电话、整单金额（含菜单下单的单） */
+  try {
+    const res = await sb.from('orders')
+      .select('customer_name,customer_phone,product_name,quantity,amount,ordered_at')
+      .eq('company_id', myCompanyId())
+      .order('ordered_at', { ascending: false })
+      .limit(500);
+    if (!res.error && res.data) {
+      rows = res.data;
+      rows.forEach(function (o) {
+        const ck = String(o.customer_name || '').trim().toLowerCase();
+        if (!ck) return;
+        if (!custMap[ck]) custMap[ck] = { name: o.customer_name, phone: o.customer_phone || '', n: 0, sum: 0 };
+        if (!custMap[ck].phone && o.customer_phone) custMap[ck].phone = o.customer_phone;
+        custMap[ck].n++;
+        custMap[ck].sum += Number(o.amount) || 0;
+
+        /* 手动录的单没有 order_items，按整单推算单价 */
+        const pn0 = String(o.product_name || '').trim();
+        if (pn0 && !/[0-9]+ \u79cd\u5546\u54c1/.test(pn0)) {
+          prodSet[pn0] = 1;
+          const kk = ck + '|' + pn0.toLowerCase();
+          const q0 = Number(o.quantity) || 0;
+          const a0 = Number(o.amount) || 0;
+          if (lastPrice[kk] === undefined && q0 > 0) {
+            lastPrice[kk] = { unit: Math.round((a0 / q0) * 100) / 100, qty: q0 };
+          }
+        }
+      });
+    }
+  } catch (e) { /* 忽略 */ }
+
+  /* ② 订单明细：商品名 + 单价（菜单下单的商品在这里面） */
+  try {
+    const res2 = await sb.from('order_items')
+      .select('product_name,price,quantity,created_at,orders!inner(customer_name,company_id,ordered_at)')
+      .eq('orders.company_id', myCompanyId())
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (!res2.error && res2.data) {
+      res2.data.forEach(function (it) {
+        const pn = String(it.product_name || '').trim();
+        if (!pn) return;
+        prodSet[pn] = 1;
+        const cn = String((it.orders && it.orders.customer_name) || '').trim().toLowerCase();
+        if (!cn) return;
+        /* 记录「最近一次的单价和数量」，用于按单价×数量推算这次金额 */
+        const key = cn + '|' + pn.toLowerCase();
+        lastPrice[key] = { unit: Number(it.price) || 0, qty: Number(it.quantity) || 1 };
+      });
+    }
+  } catch (e) { /* 没有 order_items 权限也不影响录单 */ }
+
+  Object.keys(custMap).forEach(function (k) { agg[k] = custMap[k].sum / Math.max(1, custMap[k].n); });
+
+  state.hist = {
+    customers: Object.keys(custMap).map(function (k) { return custMap[k]; }),
+    products: Object.keys(prodSet),
+    lastPrice: lastPrice,
+    avg: agg,
+    loaded: true,
+    rows: rows
+  };
+}
+
+function findCustomer(name) {
+  const k = String(name || '').trim().toLowerCase();
+  if (!k) return null;
+  return (state.hist.customers || []).filter(function (c) { return String(c.name || '').trim().toLowerCase() === k; })[0] || null;
+}
+
+/* 2) 重复单：同客户 + 同商品 + 同金额，5 分钟内 */
+function findDuplicate(customer, product, amount) {
+  const now = Date.now();
+  return (state.hist.rows || []).filter(function (o) {
+    if (String(o.customer_name || '').trim().toLowerCase() !== String(customer).trim().toLowerCase()) return false;
+    if (String(o.product_name || '').trim().toLowerCase() !== String(product).trim().toLowerCase()) return false;
+    if (Math.abs((Number(o.amount) || 0) - amount) > 0.001) return false;
+    const t = new Date(o.ordered_at).getTime();
+    return isFinite(t) && (now - t) < 5 * 60 * 1000;
+  })[0] || null;
+}
+
+/* 3) 金额异常：超过该客户历史均值 3 倍 */
+function isAmountAnomaly(customer, amount) {
+  const c = findCustomer(customer);
+  if (!c) return null;
+  const avg = (state.hist.avg || {})[String(customer).trim().toLowerCase()];
+  if (!avg || avg <= 0) return null;
+  if (amount > avg * 3 && amount - avg > 50) return { avg: avg, times: amount / avg };
+  return null;
+}
+
+
+/* ================= 发货通知流程（全部手动发送） ================= */
+function orderDeliveryDate(o) {
+  const s = String(o.remark || '');
+  const m = s.match(/(?:送货日期|Delivery date|Tarikh penghantaran)\s*[:：]\s*(\d{4}-\d{2}-\d{2})/i);
+  return m ? m[1] : '';
+}
+function fmtWeekday(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (!isFinite(d.getTime())) return '';
+  return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+}
+function waCustomerText(o) {
+  const q = Number(o.quantity) || 1;
+  const unit = o.__unit || 'items';
+  const prod = o.product_name || '';
+  const dd = orderDeliveryDate(o);
+  return 'Hi, your order ' + (o.order_no || '') + ' has been shipped. ' +
+    prod + ' x ' + q + (unit !== 'items' ? ' ' + unit : '') + '.' +
+    (dd ? ' Expected delivery on ' + fmtWeekday(dd) + '.' : '') + ' Thank you!';
+}
+function waBossText(o) {
+  const q = Number(o.quantity) || 1;
+  return 'Boss, order ' + (o.order_no || '') + ' has been shipped. Customer: ' +
+    (o.customer_name || '') + ', ' + (o.product_name || '') + ' x ' + q + '.';
+}
+function bossPhone() {
+  return (state.bossPhone || '').trim() || (state.company && state.company.phone) || '';
+}
+
+async function markShipped(o) {
+  const ok = await confirmAction({
+    title: t('确认已发货'),
+    text: tf('订单 {no} 将标记为「已发货」，然后打开 WhatsApp 给客户发消息。', { no: o.order_no || '' }),
+    okText: t('确认发货')
+  });
+  if (!ok) return;
+
+  setBusy(true);
+  let res;
+  try { res = await sb.from('orders').update({ status: 'shipped' }).eq('id', o.id); }
+  finally { setBusy(false); }
+  if (res && res.error) { toast(errMsg(res.error), 'error'); return; }
+
+  toast(t('已标记为已发货'), 'ok');
+  _shipOrder = Object.assign({}, o, { status: 'shipped' });
+
+  /* 打开 WhatsApp（客户）—— 不自动发送，只是把消息写好 */
+  const url = waLinkFor(o.customer_phone || '', companyCurrency(o.company_id), waCustomerText(o));
+  if (url) window.open(url, '_blank', 'noopener');
+  else toast(t('这单没填电话，请用分享面板自己选人'), 'warn');
+
+  /* 回到平台后弹出「通知老板」 */
+  window.addEventListener('focus', function once() {
+    window.removeEventListener('focus', once);
+    setTimeout(function () { afterShipModal(); }, 800);
+  }, { once: true });
+
+  if (state.view === 'orders') loadOrders(state.orders.page).catch(function () {});
+  loadBell(true);
+}
+
+let _shipOrder = null;
+function afterShipModal() {
+  if (!_shipOrder) return;
+  const url = waLinkFor(bossPhone(), (state.company && state.company.currency) || 'SGD', waBossText(_shipOrder));
+  openModal('', 
+    '<div class="empty" style="padding:6px 4px 14px"><b>' + esc(t('已通知客户，请通知老板')) + '</b></div>' +
+    '<div class="form-actions" style="justify-content:center">' +
+      '<button class="btn primary" type="button" data-act="notify-boss">' + esc(t('通知老板')) + '</button>' +
+    '</div>');
+  _shipOrder = Object.assign({}, _shipOrder);
+}
+
+/* ================= 小铃铛（基于 audit_logs，无需改表） ================= */
+const BELL_SEEN = 'maxai.bellSeen';
+state.bell = { items: [], unread: 0 };
+let bellTimer = null;
+
+function bellSeenAt() { try { return Number(localStorage.getItem(BELL_SEEN) || 0); } catch (e) { return 0; } }
+function bellSetSeen(v) { try { localStorage.setItem(BELL_SEEN, String(v)); } catch (e) { } }
+
+async function loadBell(force) {
+  if (!sb || !state.me || !isStaff() || isSuper()) return;
+  try {
+    const res = await sb.from('audit_logs')
+      .select('id,entity,entity_id,action,created_at,actor_id,new_row,old_row')
+      .eq('entity', 'orders')
+      .eq('company_id', myCompanyId())
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (res.error) return;
+    const rows = res.data || [];
+    const seen = bellSeenAt();
+
+    /* 取操作人名字 */
+    const ids = rows.map(function (r) { return r.actor_id; }).filter(Boolean)
+      .filter(function (v, i, a) { return a.indexOf(v) === i; });
+    if (ids.length) {
+      try {
+        const p = await sb.from('profiles').select('id,full_name,email').in('id', ids);
+        if (!p.error) (p.data || []).forEach(function (x) { state.actorMap[x.id] = x; });
+      } catch (e) { }
+    }
+    state.bell.items = rows.map(function (r) {
+      const n = r.new_row || {}, o = r.old_row || {};
+      const isIns = String(r.action).indexOf('insert') >= 0;
+      const st = n.status || o.status || '';
+      return {
+        id: r.id,
+        orderId: r.entity_id,
+        orderNo: n.order_no || o.order_no || '',
+        actor: r.actor_id,
+        at: r.created_at,
+        unread: new Date(r.created_at).getTime() > seen,
+        kind: isIns ? 'new' : (st === 'shipped' ? 'shipped' : 'update'),
+        customer: n.customer_name || o.customer_name || '',
+        actorName: (function () {
+          const a = state.actorMap ? state.actorMap[r.actor_id] : null;
+          return a ? (a.full_name || a.email || '') : '';
+        })()
+      };
+    });
+    await loadBossPhone();
+    const sk = await stockBellItems();
+    const bt = await batchBellItems();
+    sk.push.apply(sk, bt);
+    state.bell.items = sk.concat(state.bell.items);
+    state.bell.unread = state.bell.items.filter(function (x) { return x.unread; }).length;
+    renderBell();
+  } catch (e) { /* 忽略 */ }
+}
+
+
+/* 点铃铛里的一条 → 直接打开那张订单的编辑框 */
+async function openBellOrder(id) {
+  const panel = document.getElementById('bellPanel');
+  if (panel) panel.hidden = true;
+  try {
+    const res = await sb.from('orders').select('*').eq('id', id).limit(1);
+    const o = (res && res.data && res.data[0]) || null;
+    await switchView('orders');
+    if (o) { openOrderModal(o); }
+    else { toast(t('这张订单可能已被删除'), 'warn'); }
+  } catch (e) {
+    try { await switchView('orders'); } catch (x) { }
+  }
+}
+
+
+/* ================= 库存自动检查 + 缺货提醒（只提示，不自动改） ================= */
+state.stockMap = {};        // 小写品名 → 商品行
+state.oversell = false;     // 老板选择"照原数量下单"时的一次性放行
+
+async function loadStockMap(force) {
+  if (!sb || !state.me || isSuper()) return;
+  if (state.stockMap.__loaded && !force) return;
+  try {
+    const res = await sb.from('products').select('id,name,stock,unit').eq('company_id', myCompanyId()).limit(500);
+    if (res.error) return;
+    const m = {};
+    (res.data || []).forEach(function (p) { m[String(p.name || '').trim().toLowerCase()] = p; });
+    m.__loaded = true;
+    state.stockMap = m;
+  } catch (e) { }
+}
+
+function findProductByName(name) {
+  return state.stockMap[String(name || '').trim().toLowerCase()] || null;
+}
+
+/* 返回 null=没问题；否则 {p, stock, need, short} */
+function checkStock(productName, qty) {
+  const p = findProductByName(productName);
+  if (!p) return null;
+  if (p.stock === null || p.stock === undefined) return null;   // 不限库存
+  const stock = Number(p.stock) || 0;
+  const need = Number(qty) || 0;
+  if (need <= stock) return null;
+  return { p: p, stock: stock, need: need, short: Math.round((need - stock) * 100) / 100 };
+}
+
+function stockShortText(r) {
+  return tf('{n}只剩 {s}{u}，你要 {d}{u}，少 {k}{u}', {
+    n: r.p.name, s: r.stock, d: r.need, k: r.short, u: r.p.unit ? ' ' + r.p.unit : ''
+  });
+}
+
+/* 三个选择的小窗 */
+
+/* 只有一句话 + 一个按钮的提示框 */
+function alertBox(title, text) {
+  openModal(title || '', 
+    '<div class="empty" style="padding:6px 4px 12px"><b>' + esc(text) + '</b></div>' +
+    '<div class="form-actions" style="justify-content:center">' +
+      '<button class="btn primary" type="button" data-close>' + esc(t('知道了')) + '</button>' +
+    '</div>');
+}
+
+function stockWarnModal(r, onAvailable, onFull, onCancel) {
+  openModal(t('库存不足'), 
+    '<div class="empty" style="padding:6px 4px 12px">' +
+      '<b>' + esc(stockShortText(r)) + '</b>' +
+      '<div class="cell-sub" style="margin-top:6px">' + esc(t('要怎么办？你来定')) + '</div>' +
+    '</div>' +
+    '<div style="display:grid;gap:8px">' +
+      '<button class="btn primary block" type="button" data-act="stock-choice" data-c="a">' + esc(tf('先按现有 {s}{u} 下单', { s: r.stock, u: r.p.unit ? ' ' + r.p.unit : '' })) + '</button>' +
+      '<button class="btn ghost block" type="button" data-act="stock-choice" data-c="b">' + esc(tf('照原数量 {d}{u} 下单（欠货）', { d: r.need, u: r.p.unit ? ' ' + r.p.unit : '' })) + '</button>' +
+      '<button class="btn ghost block" type="button" data-act="stock-choice" data-c="c">' + esc(t('先不下单')) + '</button>' +
+    '</div>');
+  state.stockChoice = { r: r, a: onAvailable, b: onFull, c: onCancel };
+}
+
+/* 铃铛里的缺货条目（纯前端计算，刷新后依然在） */
+async function stockBellItems() {
+  try {
+    await loadStockMap();
+    const list = [];
+    Object.keys(state.stockMap || {}).forEach(function (k) {
+      if (k === '__loaded') return;
+      const p = state.stockMap[k];
+      if (p.stock === null || p.stock === undefined) return;
+      const s = Number(p.stock) || 0;
+      if (s <= 0) list.push({ kind: 'stock', title: tf('{n} 缺货了', { n: p.name }), at: new Date().toISOString(), productId: p.id, unread: true, orderId: '' });
+    });
+    return list;
+  } catch (e) { return []; }
+}
+
+
+/* ================= 老板电话（优先个人，回落公司） ================= */
+state.bossPhone = '';
+async function loadBossPhone() {
+  if (!sb || !state.me || isSuper()) return;
+  try {
+    const res = await sb.from('profiles').select('phone,role').eq('company_id', myCompanyId()).eq('role', 'company_admin').limit(5);
+    if (res.error) return;
+    const hit = (res.data || []).filter(function (x) { return x.phone && String(x.phone).trim(); })[0];
+    if (hit) state.bossPhone = String(hit.phone).trim();
+  } catch (e) { }
+}
+
+/* ================= 批次 / 保质期 ================= */
+state.batches = [];
+
+async function loadBatches(productId) {
+  try {
+    const res = await sb.from('batches').select('*').eq('product_id', productId).order('expires_on', { ascending: true }).limit(50);
+    if (res.error) return [];
+    return res.data || [];
+  } catch (e) { return []; }
+}
+
+function daysToExpire(d) {
+  if (!d) return null;
+  const t = new Date(String(d).slice(0, 10) + 'T00:00:00').getTime();
+  if (!isFinite(t)) return null;
+  return Math.ceil((t - Date.now()) / 86400000);
+}
+
+async function openBatchModal(p) {
+  if (!p) return;
+  const list = await loadBatches(p.id);
+  state.batches = list;
+  const rows = list.length ? list.map(function (b) {
+    const d = daysToExpire(b.expires_on);
+    const cls = d === null ? '' : (d < 0 ? 'overdue' : (d <= 7 ? 'overdue' : ''));
+    return '<tr><td>' + esc(b.lot_no || '—') + '</td><td class="num">' + num(b.qty) + '</td>' +
+      '<td class="muted">' + (b.produced_on ? fmtDate(b.produced_on, false) : '—') + '</td>' +
+      '<td class="' + cls + '">' + (b.expires_on ? fmtDate(b.expires_on, false) : '—') +
+        (d !== null ? '<div class="cell-sub' + (d <= 7 ? ' overdue' : '') + '">' +
+          (d < 0 ? tf('已过期 {d} 天', { d: Math.abs(d) }) : tf('剩 {d} 天', { d: d })) + '</div>' : '') +
+      '</td></tr>';
+  }).join('') : '<tr><td colspan="4" class="muted">' + esc(t('还没有批次记录')) + '</td></tr>';
+
+  openModal(t('批次 / 保质期') + ' · ' + p.name,
+    '<form id="batchForm" data-id="' + p.id + '" novalidate>' +
+      '<div class="form-grid">' +
+        '<label class="field"><span>' + esc(t('批号')) + '</span><input class="input" name="lot_no" maxlength="40"></label>' +
+        '<label class="field"><span>' + esc(t('数量')) + '<em>*</em></span><input class="input" name="qty" type="number" min="0" step="0.5" required value="0"></label>' +
+        '<label class="field"><span>' + esc(t('入库日期')) + '</span><input class="input" name="produced_on" type="date"></label>' +
+        '<label class="field"><span>' + esc(t('到期日')) + '</span><input class="input" name="expires_on" type="date"></label>' +
+      '</div>' +
+      '<div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr>' +
+        '<th>' + esc(t('批号')) + '</th><th class="num">' + esc(t('数量')) + '</th>' +
+        '<th>' + esc(t('入库')) + '</th><th>' + esc(t('到期')) + '</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存批次')) + '</button>' +
+      '</div></form>');
+
+  $('#batchForm').addEventListener('submit', saveBatch);
+}
+
+
+/* 我的资料：姓名 + 手机号（存 profiles.phone，老板电话就填这里） */
+function openMyProfile() {
+  const p = state.me || {};
+  openModal(t('我的资料'),
+    '<form id="profileForm" novalidate>' +
+      '<label class="field"><span>' + esc(t('姓名')) + '</span>' +
+        '<input class="input" name="full_name" maxlength="40" value="' + esc(p.full_name || '') + '"></label>' +
+      '<label class="field" style="margin-top:10px"><span>' + esc(t('手机号')) + '</span>' +
+        '<input class="input" name="phone" maxlength="40" placeholder="+65 8123 4567" value="' + esc(p.phone || '') + '"></label>' +
+      '<div class="hint" style="margin-top:10px">' + esc(t('填了手机号，发货后通知老板会自动用它')) + '</div>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
+      '</div></form>');
+  $('#profileForm').addEventListener('submit', saveMyProfile);
+}
+
+async function saveMyProfile(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+  btn.disabled = true; btn.textContent = t('保存中…');
+  try {
+    const res = await sb.from('profiles').update({
+      full_name: form.full_name.value.trim() || null,
+      phone: form.phone.value.trim() || null
+    }).eq('id', state.me.id);
+    if (res.error) throw res.error;
+    state.me.full_name = form.full_name.value.trim() || state.me.full_name;
+    state.me.phone = form.phone.value.trim() || null;
+    if (state.me.role === 'company_admin') state.bossPhone = state.me.phone || state.bossPhone;
+    closeModal();
+    toast(t('已保存'), 'ok');
+    buildShell();
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    btn.disabled = false; btn.textContent = t('保存');
+  }
+}
+
+/* 出库：按到期日先进先出扣批次，并把 batch_id 写进 order_items */
+async function allocateBatches(itemId, productId, qty) {
+  let left = Number(qty) || 0;
+  if (!itemId || !productId || left <= 0) return;
+
+  let base = null;
+  try {
+    const r0 = await sb.from('order_items').select('*').eq('id', itemId).limit(1);
+    base = (r0.data && r0.data[0]) || null;
+  } catch (e) { }
+
+  const unit = base && Number(base.quantity) > 0 ? (Number(base.amount) || 0) / Number(base.quantity) : 0;
+  const total = Number(qty) || 0;
+
+  let res;
+  try { res = await sb.rpc('batch_fifo', { p_product: productId }); }
+  catch (e) { toast(t('批次查询失败，出库未挂批次'), 'warn'); return; }
+  if (res.error) { toast(t('批次查询失败，出库未挂批次'), 'warn'); return; }
+
+  const list = res.data || [];
+  let first = true;
+  let parts = 0;
+  for (const b of list) {
+    if (left <= 0) break;
+    const take = Math.min(left, Number(b.qty) || 0);
+    if (take <= 0) continue;
+
+    const bu = await sb.from('batches').update({ qty: Number(b.qty) - take }).eq('id', b.batch_id);
+    if (bu.error) { toast(t('批次扣减失败，请手动核对库存'), 'error'); return; }
+
+    if (first && base) {
+      /* 第一段：复用原明细行，只改数量/金额并挂批次 */
+      await sb.from('order_items').update({
+        batch_id: b.batch_id,
+        quantity: take,
+        amount: Math.round(unit * take * 100) / 100
+      }).eq('id', itemId);
+      first = false;
+      parts++;
+    } else if (base) {
+      /* 第二段起：拆成新的明细行，各自挂自己的批次 */
+      await sb.from('order_items').insert({
+        order_id: base.order_id,
+        product_id: base.product_id,
+        product_name: base.product_name,
+        price: unit,
+        quantity: take,
+        amount: Math.round(unit * take * 100) / 100,
+        batch_id: b.batch_id
+      });
+      parts++;
+    }
+    left -= take;
+  }
+
+  if (left > 0) {
+    toast(tf('批次数量不够，还有 {n} 没有挂批次（可手动补）', { n: left }), 'warn');
+  } else if (parts > 1) {
+    toast(tf('已按到期日拆成 {n} 条明细（先进先出）', { n: parts }), 'info');
+  }
+}
+
+async function saveBatch(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('[type=submit]');
+  const errBox = form.querySelector('.form-error');
+  errBox.textContent = '';
+  const qty = Number(form.qty.value);
+  if (!isFinite(qty) || qty < 0) { errBox.textContent = t('数量必须是不小于 0 的数字'); return; }
+
+  btn.disabled = true;
+  setBusy(true);
+  try {
+    /* 没填到期日 → 用「入库日期 + 保质期天数」自动算 */
+    let produced = form.produced_on.value || null;
+    let expires = form.expires_on.value || null;
+    if (!expires && produced) {
+      const p0 = (state.products || []).filter(function (x) { return x.id === form.dataset.id; })[0];
+      const days = p0 && Number(p0.shelf_life_days);
+      if (days > 0) {
+        const d = new Date(produced + 'T00:00:00');
+        d.setDate(d.getDate() + days);
+        expires = d.toISOString().slice(0, 10);
+      }
+    }
+
+    const res = await sb.from('batches').insert({
+      company_id: myCompanyId(),
+      product_id: form.dataset.id,
+      lot_no: form.lot_no.value.trim() || null,
+      qty: qty,
+      produced_on: produced,
+      expires_on: expires
+    });
+    if (res.error) throw res.error;
+
+    /* 入库 → 可售库存增加 */
+    if (qty > 0) {
+      const p1 = (state.products || []).filter(function (x) { return x.id === form.dataset.id; })[0];
+      const cur = (p1 && p1.stock !== null && p1.stock !== undefined) ? Number(p1.stock) : 0;
+      const up = await sb.from('products').update({ stock: cur + qty }).eq('id', form.dataset.id);
+      if (up.error) throw up.error;
+    }
+
+    closeModal();
+    toast(t('批次已保存，库存已增加'), 'ok');
+    if (state.view === 'products') loadProducts().catch(function () {});
+  } catch (e) {
+    errBox.textContent = errMsg(e);
+  } finally {
+    setBusy(false);
+    btn.disabled = false;
+    btn.textContent = t('保存批次');
+  }
+}
+
+/* 临期批次 → 铃铛 */
+async function batchBellItems() {
+  if (!sb || !state.me || isSuper()) return [];
+  try {
+    const res = await sb.from('batches')
+      .select('id,product_id,lot_no,qty,expires_on,products!inner(name,company_id)')
+      .eq('products.company_id', myCompanyId())
+      .not('expires_on', 'is', null)
+      .lte('expires_on', new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))
+      .order('expires_on', { ascending: true })
+      .limit(20);
+    if (res.error) return [];
+    return (res.data || []).filter(function (b) { return Number(b.qty) > 0; }).map(function (b) {
+      const d = daysToExpire(b.expires_on);
+      const nm = (b.products && b.products.name) || '';
+      return {
+        kind: 'stock',
+        title: (d < 0 ? tf('{n} 已过期 {d} 天', { n: nm, d: Math.abs(d) }) : tf('{n} 还剩 {d} 天到期', { n: nm, d: d })),
+        at: new Date().toISOString(),
+        productId: b.product_id,
+        unread: true,
+        orderId: ''
+      };
+    });
+  } catch (e) { return []; }
+}
+
+function renderBell() {
+  const dot = document.getElementById('bellDot');
+  const list = document.getElementById('bellList');
+  if (!dot || !list) return;
+  const n = state.bell.unread;
+  dot.hidden = !n;
+  dot.textContent = n > 9 ? '9+' : String(n);
+
+  if (!state.bell.items.length) {
+    list.innerHTML = '<div class="empty"><b>' + esc(t('还没有动态')) + '</b>' + esc(t('有人下单、发货或逾期时会出现在这里')) + '</div>';
+    return;
+  }
+  const seenIds = {};
+  list.innerHTML = state.bell.items.map(function (it) {
+    const label = it.kind === 'new' ? t('新订单')
+      : it.kind === 'shipped' ? t('已发货')
+      : it.kind === 'stock' ? t('缺货')
+      : t('订单更新');
+    const who = it.actor ? '' : '';
+    return '<button class="bell-item' + (it.unread ? ' unread' : '') + '" type="button" data-act="bell-open" data-id="' + esc(it.orderId || '') + '" data-prod="' + esc(it.productId || '') + '">' +
+      '<span class="bell-kind ' + it.kind + '">' + esc(label) + '</span>' +
+      '<span class="bell-main">' + esc(it.title || ((it.orderNo || '') + (it.customer ? ' · ' + it.customer : ''))) + '</span>' +
+      '<span class="bell-time">' + esc(fmtDate(it.at)) + (it.actorName ? ' · ' + esc(it.actorName) : '') + '</span>' +
+    '</button>';
+  }).join('');
+}
+
+function openBell() {
+  const panel = document.getElementById('bellPanel');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) {
+    loadBell(true);
+    setTimeout(function () { bellSetSeen(Date.now()); state.bell.unread = 0; renderBell(); }, 1200);
+  }
+}
+
+function startBell() {
+  clearInterval(bellTimer);
+  if (!sb || !state.me || isSuper() || !isStaff()) return;
+  loadBell(true);
+  bellTimer = setInterval(function () { loadBell(); }, 10000);
+}
+
+function stopBell() { clearInterval(bellTimer); bellTimer = null; }
+
 /* ---------------- 批量导入商品（Excel / 粘贴） ---------------- */
 let xlsxPromise = null;
 function loadXLSX() {
@@ -6044,7 +7015,7 @@ function openBulkImport() {
       '<label class="field"><span>' + esc(t('或粘贴文本')) + '</span>' +
         '<textarea class="textarea" id="bulkCsv" name="csv" rows="7" spellcheck="false" style="font-family:var(--mono);font-size:12.5px" placeholder="' +
           esc('Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳') + '"></textarea></label>' +
-      '<div class="hint" style="margin-top:8px">' + esc(t('列顺序：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。')) + '</div>' +
+      '<div class="hint" style="margin-top:8px">' + esc(t('列顺序：名称, 价格, 单位, 分类, 库存, 简介, 英文名, 马来文名。只有名称和价格必填。')) + '</div>' +
       '<div id="bulkPreview" style="margin-top:12px"></div>' +
       '<div class="form-error"></div>' +
       '<div class="form-actions">' +
@@ -6092,7 +7063,7 @@ function parseBulkRows(text) {
     if (priceRaw === '' || priceRaw === undefined || !isFinite(price) || price < 0) {
       ok = false; why = t('缺价格或价格不是数字');
     }
-    items.push({ no: i + 1, name: name, price: ok ? price : 0, unit: c[2] || '', category: c[3] || '', stock: c[4] || '', description: c[5] || '', ok: ok, why: why });
+    items.push({ no: i + 1, name: name, price: ok ? price : 0, unit: c[2] || '', category: c[3] || '', stock: c[4] || '', description: c[5] || '', name_en: c[6] || '', name_ms: c[7] || '', ok: ok, why: why });
   });
   return items;
 }
@@ -6152,6 +7123,8 @@ async function doBulkImport(event) {
       unit: r.unit || null,
       category: r.category || null,
       stock: r.stock === '' ? null : Number(r.stock),
+      name_en: r.name_en || null,
+      name_ms: r.name_ms || null,
       description: r.description || null,
       is_active: true
     };
@@ -6184,6 +7157,61 @@ function renderBuild() {
   el.textContent = BUILD + ' · ' + (document.body ? '' : '') + Math.round(html_len() / 1024) + 'KB';
 }
 function html_len() { try { return new Blob([document.documentElement.outerHTML]).size; } catch (e) { return 0; } }
+
+const MS_DOC = {
+ "Forgot password? Ask the admin to reset it from Supabase → Authentication → Users.": "Lupa kata laluan? Minta pentadbir menetapkannya semula di Supabase → Authentication → Users.",
+ "No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.": "Tiada kod jemputan? Hubungi pentadbir melalui WhatsApp — kod dijana di Pengguna → Jemput.",
+ "Cannot see orders? Your account may have no company assigned yet.": "Tidak nampak pesanan? Akaun anda mungkin belum ditetapkan kepada syarikat.",
+ "Need a new company or role change? Only super admins can do it.": "Perlu syarikat baharu atau tukar peranan? Hanya pentadbir platform boleh melakukannya.",
+ "Hi ": "Hai ",
+ "Create a project at supabase.com, Region: Singapore / Tokyo (recommended).": "Cipta projek di supabase.com, Region: Singapore / Tokyo (disyorkan).",
+ "Database initialisation SQL": "SQL inisialisasi pangkalan data"
+};
+
+
+/* 马来文长文案替换：这些句子直接写在渲染代码里，没进词典，
+   所以在 ms 模式下按【整段精确匹配】替换一次 */
+function msSwapDoc(root) {
+  if (lang !== 'ms' || !root) return;
+  const map = MS_DOC;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  const hits = [];
+  let n;
+  while ((n = walker.nextNode())) {
+    const s = n.nodeValue;
+    if (!s || !s.trim()) continue;
+    const key = s.trim();
+    if (map[key] && map[key] !== key) hits.push([n, s, map[key]]);
+  }
+  hits.forEach(function (h) {
+    const node = h[0];
+    const lead = h[1].match(/^\s*/)[0];
+    const tail = h[1].match(/\s*$/)[0];
+    node.nodeValue = lead + h[2] + tail;
+  });
+}
+
+
+/* 马来文模式下，还没翻译的长段英文说明统一折叠成一句马来文提示 */
+function msCollapseEnglish(root) {
+  if (lang !== 'ms' || !root) return;
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let n;
+  while ((n = walker.nextNode())) {
+    const s = (n.nodeValue || '').trim();
+    if (s.length < 55) continue;
+    if (/[\u4e00-\u9fa5]/.test(s)) continue;                                     // 中文不处理
+    if (!/[A-Za-z]{4}/.test(s)) continue;
+    if (/\b(dan|yang|untuk|dengan|tidak|sila|anda|adalah)\b/i.test(s)) continue;  // 已经是马来文
+    var letters = s.replace(/[^A-Za-z]/g, '').length;
+    if (letters / s.length < 0.6) continue;                                       // 不像英文句子
+    nodes.push(n);
+  }
+  if (!nodes.length) return;
+  nodes[0].nodeValue = 'Terjemahan Bahasa Melayu untuk bahagian ini belum tersedia — sila rujuk versi Inggeris (English).';
+  for (let i = 1; i < nodes.length; i++) nodes[i].nodeValue = '';
+}
 
 function bindEvents() {
   document.addEventListener('click', function (event) {
@@ -6259,8 +7287,44 @@ function bindEvents() {
       }
       case 'enable-alert': enableAlerts(); break;
       case 'change-pw': openChangePw(); break;
+      case 'my-profile': openMyProfile(); break;
       case 'goto-orders': closeModal(); switchView('orders'); break;
       case 'export-csv': exportOrdersCsv(); break;
+      case 'stock-choice': {
+        const c = el.dataset.c;
+        const ctx = state.stockChoice || {};
+        closeModal();
+        state.stockChoice = null;
+        if (c === 'a' && ctx.a) ctx.a();
+        else if (c === 'b' && ctx.b) ctx.b();
+        else if (c === 'c' && ctx.c) ctx.c();
+        break;
+      }
+      case 'ship-order': {
+        const o = (state.orders.rows || []).filter(function (x) { return x.id === el.dataset.id; })[0];
+        if (o) markShipped(o);
+        break;
+      }
+      case 'notify-boss': {
+        closeModal();
+        if (_shipOrder) {
+          const bp = bossPhone();
+          if (!bp) {
+            toast(t('老板电话没填：请在个人资料填手机号，或在公司资料填公司电话'), 'warn');
+          } else {
+            const u = waLinkFor(bp, (state.company && state.company.currency) || 'SGD', waBossText(_shipOrder));
+            if (u) window.open(u, '_blank', 'noopener');
+            else toast(t('公司电话没填，请先在公司资料里填电话'), 'warn');
+          }
+        }
+        _shipOrder = null;
+        break;
+      }
+      case 'bell-toggle': openBell(); break;
+      case 'bell-open':
+        if (el.dataset.prod) { document.getElementById('bellPanel').hidden = true; switchView('products'); }
+        else openBellOrder(el.dataset.id);
+        break;
       case 'credit-refresh': loadCredit().catch(function (e) { toast(errMsg(e), 'error'); }); break;
       case 'credit-open': state.creditOpen[el.dataset.key] = !state.creditOpen[el.dataset.key]; renderCredit(); break;
       case 'credit-remind': creditRemind(el.dataset.key); break;
@@ -6273,6 +7337,7 @@ function bindEvents() {
       case 'product-edit': openProductModal(state.products.filter(function (x) { return x.id === el.dataset.id; })[0]); break;
       case 'product-toggle': toggleProduct(el.dataset.id); break;
       case 'product-stock': openStockModal(state.products.filter(function (x) { return x.id === el.dataset.id; })[0]); break;
+      case 'product-batch': openBatchModal(state.products.filter(function (x) { return x.id === el.dataset.id; })[0]); break;
       case 'product-del': deleteProduct(el.dataset.id); break;
       case 'audit-refresh': loadAudit(0).catch(function (e) { toast(errMsg(e), 'error'); }); break;
       case 'audit-page': loadAudit(parseInt(el.dataset.id, 10)).catch(function (e) { toast(errMsg(e), 'error'); }); break;
