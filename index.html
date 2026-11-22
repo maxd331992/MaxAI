@@ -1825,6 +1825,7 @@ const EN = {
   "{m} 行有问题会跳过": "{m} rows will be skipped",
   "只预览前 20 行，共 {n} 行": "Showing the first 20 of {n} rows",
   "没有可导入的行，检查一下格式": "Nothing to import — check the format",
+  "公司总数": "Companies",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
@@ -2377,6 +2378,7 @@ const MS = {
   "{m} 行有问题会跳过": "{m} baris akan dilangkau",
   "只预览前 20 行，共 {n} 行": "Memaparkan 20 baris pertama daripada {n}",
   "没有可导入的行，检查一下格式": "Tiada baris untuk diimport — semak format",
+  "公司总数": "Syarikat",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -2545,8 +2547,8 @@ const CURRENCIES = {
 };
 function curInfo(code) { return CURRENCIES[code] || CURRENCIES.SGD; }
 function curSymbol(code) { return curInfo(code).symbol; }
-function curName(code) { return lang === 'en' ? curInfo(code).en : curInfo(code).zh; }
-function curLabel(code) { const c = curInfo(code); return c.symbol + ' ' + (lang === 'en' ? c.en : c.zh); }
+function curName(code) { return lang !== 'zh' ? curInfo(code).en : curInfo(code).zh; }
+function curLabel(code) { const c = curInfo(code); return c.symbol + ' ' + (lang !== 'zh' ? c.en : c.zh); }
 
 function money(v, cur) {
   const n = Number(v) || 0;
@@ -2556,7 +2558,7 @@ function money(v, cur) {
 function moneyShort(v, cur) {
   const n = Number(v) || 0;
   const s = curSymbol(cur);
-  if (lang === 'en' || (cur && cur !== 'SGD')) {
+  if (lang !== 'zh' || (cur && cur !== 'SGD')) {
     if (n >= 1000000) return s + (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000) return s + (n / 1000).toFixed(1) + 'k';
     return s + Math.round(n);
@@ -2600,7 +2602,7 @@ function clientTimeZone() {
 
 /* 错误信息中文化 / 英文化 */
 function errMsg(e) {
-  const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || (lang === 'en' ? 'Unknown error' : '未知错误');
+  const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || (lang !== 'zh' ? 'Unknown error' : '未知错误');
   const map = {
     'Invalid login credentials': '邮箱或密码不正确',
     'Email not confirmed': '邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册',
@@ -2615,7 +2617,7 @@ function errMsg(e) {
   }
   const s = String(raw);
   if (s.indexOf('JWT') !== -1) return t('登录状态已过期，请重新登录');
-  if (s.indexOf('duplicate key') !== -1) return lang === 'en' ? 'Duplicate: name or code already exists' : '数据重复：公司名称或编号已存在';
+  if (s.indexOf('duplicate key') !== -1) return lang !== 'zh' ? 'Duplicate: name or code already exists' : '数据重复：公司名称或编号已存在';
   if (s.indexOf('schema cache') !== -1 || s.indexOf('check_invite_code') !== -1) {
     return t('数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。');
   }
@@ -2838,7 +2840,7 @@ function showAuth(opts) {
     const gwa = $('#cfgGuestWa');
     if (gwa) {
       gwa.href = whatsappUrl(
-        lang === 'en'
+        lang !== 'zh'
           ? 'Hi Max, the MaxAI Portal link shows “not configured”.'
           : '你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。',
         SUPPORT.wa
@@ -2856,7 +2858,7 @@ function showAuth(opts) {
   if (o.sdkError) {
     banner.hidden = false;
     banner.className = 'auth-banner danger';
-    banner.textContent = lang === 'en'
+    banner.textContent = lang !== 'zh'
       ? 'Failed to load the Supabase SDK — check your network and reload.'
       : 'Supabase SDK 加载失败：请检查网络后刷新页面。';
   } else if (o.error) {
@@ -2887,7 +2889,7 @@ function showAuth(opts) {
 
   /* 注册页「没有邀请码？」按钮 */
   const nwa = $('#noCodeWa');
-  if (nwa) nwa.href = whatsappUrl(lang === 'en'
+  if (nwa) nwa.href = whatsappUrl(lang !== 'zh'
     ? 'Hi Max, I need an invite code for MaxAI Portal.'
     : '你好 Max，我需要一个 MaxAI Portal 的邀请码。', SUPPORT.wa);
 
@@ -2898,7 +2900,7 @@ function showAuth(opts) {
     switchAuthTab('register');
     const ib = $('#inviteBanner');
     ib.hidden = false;
-    ib.textContent = lang === 'en'
+    ib.textContent = lang !== 'zh'
       ? 'Invite code ' + state.inviteCode + ' filled in — set a password to finish.'
       : '邀请码已填好：' + state.inviteCode + '，设置密码即可完成注册。';
   }
@@ -2934,12 +2936,12 @@ async function probeFirstAdmin() {
     banner.hidden = false;
     if (msg.indexOf('does not exist') !== -1 || msg.indexOf('function') !== -1) {
       banner.className = 'auth-banner';
-      banner.textContent = lang === 'en'
+      banner.textContent = lang !== 'zh'
         ? 'Database not initialized. Ask the admin to run supabase-schema.sql, then reload.'
         : '数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。';
     } else {
       banner.className = 'auth-banner danger';
-      banner.textContent = lang === 'en'
+      banner.textContent = lang !== 'zh'
         ? 'Cannot reach this Supabase project: ' + errMsg(e)
         : '连不上这个 Supabase 项目：' + errMsg(e) + '。请确认 Project URL 与 anon key 复制完整' +
           (savedCfg && savedCfg.url ? '，可点下方「连接填错了？重新填写」。' : '。');
@@ -3075,7 +3077,7 @@ function openResetPassword() {
 
 /* 使用条款 / 隐私政策 */
 function legalText(which) {
-  const L = lang === 'en' ? {
+  const L = lang !== 'zh' ? {
     terms: {
       title: 'Terms of Service',
       body: [
@@ -3269,11 +3271,11 @@ async function doRegister(event) {
       state.session = res.data.session;
       $('#agreeTerms').checked = false;
       toast(first.data
-        ? (lang === 'en' ? 'Setup complete — you are the super admin' : '初始化完成，你已成为超级管理员')
-        : (lang === 'en' ? 'Account created' : '注册成功'), 'ok');
+        ? (lang !== 'zh' ? 'Setup complete — you are the super admin' : '初始化完成，你已成为超级管理员')
+        : (lang !== 'zh' ? 'Account created' : '注册成功'), 'ok');
       await enterApp();
     } else {
-      toast(lang === 'en'
+      toast(lang !== 'zh'
         ? 'Registered. Confirm your email, then sign in.'
         : '注册成功！请到邮箱点击确认链接后再登录', 'ok');
       switchAuthTab('login');
@@ -3320,8 +3322,8 @@ async function enterApp() {
 
     if (me.status !== 'active') {
       showBlocked(
-        lang === 'en' ? 'Account disabled' : '账号已停用',
-        lang === 'en'
+        lang !== 'zh' ? 'Account disabled' : '账号已停用',
+        lang !== 'zh'
           ? 'This account was disabled. Ask an admin to re-enable it.'
           : '该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。'
       );
@@ -3329,8 +3331,8 @@ async function enterApp() {
     }
     if (me.role !== 'super_admin' && !me.company_id) {
       showBlocked(
-        lang === 'en' ? 'No company assigned' : '账号尚未分配公司',
-        lang === 'en'
+        lang !== 'zh' ? 'No company assigned' : '账号尚未分配公司',
+        lang !== 'zh'
           ? 'Your account is not linked to a company yet, so there is no data to show. Ask a super admin to assign one in Users.'
           : '你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员在「用户管理」中为你分配公司。'
       );
@@ -3405,7 +3407,7 @@ function buildShell() {
   $('#userName').textContent = name;
   $('#userRole').textContent = t((ROLE[state.me.role] || {}).label || '');
   $('#sideCompany').textContent = isSuper()
-    ? (lang === 'en' ? 'All companies' : '全平台')
+    ? (lang !== 'zh' ? 'All companies' : '全平台')
     : (state.company ? state.company.name : t('未分配公司'));
   $('#btnMenu').innerHTML = ICONS.menu;
 }
@@ -3692,7 +3694,7 @@ function renderPlatformDashboard() {
 
   $('#helloCard').innerHTML =
     '<div class="hello-main">' +
-      '<div class="hello-kicker">' + esc(t(greet)) + (lang === 'en' ? ', ' : '，') + esc(name) + '</div>' +
+      '<div class="hello-kicker">' + esc(t(greet)) + (lang !== 'zh' ? ', ' : '，') + esc(name) + '</div>' +
       '<div class="hello-sub">' + esc(t('平台控制台')) + ' · ' + esc(t('只管理公司与账号，不看各公司订单数据')) +
         ' · ' + esc(fmtLongDate(new Date())) + '</div>' +
     '</div>' +
@@ -3745,7 +3747,7 @@ function renderDashboard(recent) {
 
   $('#helloCard').innerHTML =
     '<div class="hello-main">' +
-      '<div class="hello-kicker">' + esc(t(greet)) + (lang === 'en' ? ', ' : '，') + esc(name) + '</div>' +
+      '<div class="hello-kicker">' + esc(t(greet)) + (lang !== 'zh' ? ', ' : '，') + esc(name) + '</div>' +
       '<div class="hello-sub">' + esc(t((ROLE[state.me.role] || {}).label || '')) + ' · ' + esc(scope) + esc(extra) +
         ' · ' + esc(fmtLongDate(new Date())) + '</div>' +
     '</div>' +
@@ -4478,7 +4480,7 @@ async function revokeInvite(id) {
 function setupHtml() {
   const masked = isConfigured ? CFG_ANON.slice(0, 12) + '…' + CFG_ANON.slice(-6) : '—';
 
-  const steps = lang === 'en'
+  const steps = lang !== 'zh'
     ? ['Create a project at supabase.com (Region: Singapore / Tokyo).',
        'SQL Editor → New query → paste the SQL below → Run (Ctrl+Enter).',
        'Project Settings → API → copy Project URL and anon public into the <b>two constants at the top of the file</b> (required when hosted on GitHub Pages, otherwise visitors see “not connected”).',
@@ -4488,7 +4490,7 @@ function setupHtml() {
        'Project Settings → API 复制 Project URL 与 anon public，<b>写进文件顶部的两个常量</b>（部署到 GitHub Pages 时这是必须的，否则访客打开只会看到「本站还没连接数据库」）。',
        '注册第一个账号 —— 自动成为超级管理员。'];
 
-  const notes = lang === 'en'
+  const notes = lang !== 'zh'
     ? [
         '<b>Platform owner (super admin)</b>: manages companies and accounts only — <b>cannot see any tenant orders</b> (blocked by RLS).',
         '<b>Company admin</b>: only its own company; invites members and manages that company’s orders.',
@@ -4550,22 +4552,22 @@ function setupHtml() {
     '<div class="card-body">' +
       '<div class="notes" style="padding:0">' +
         '<ul style="margin:0;padding-left:18px">' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>How does inviting work?</b> Users → Invite agent creates a 6-character code and a QR. Share the QR or the code on WhatsApp; the invitee enters the code at sign-up and joins the company automatically.'
             : '<b>邀请是怎么走的：</b>「用户管理 → 邀请客服」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。') + '</li>' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>No email is sent.</b> Browsers cannot call a mail service, so nothing is emailed — you share the QR/code/link yourself.'
             : '<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。') + '</li>' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>“Invite” fails.</b> ① you are not company admin ② your account has no company ③ the SQL was not run. Check the red error, then assign a company in Users.'
             : '<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。') + '</li>' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>Signup rejected.</b> Supabase → Authentication → Providers → Email must be enabled; for internal use turn off “Confirm email”.'
             : '<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。') + '</li>' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>Code not working?</b> Codes are single-use: once someone signs up with it the invite shows as used. Generate a new one.'
             : '<b>邀请码用不了：</b>邀请码是一次性的，被用过就自动作废，重新生成一个即可。') + '</li>' +
-          '<li>' + (lang === 'en'
+          '<li>' + (lang !== 'zh'
             ? '<b>“Confirm email” link opens localhost:</b> that is Supabase’s default Site URL. Either turn off Authentication → Providers → Email → “Confirm email” (recommended for invited staff), or set Authentication → URL Configuration → Site URL to your page URL (e.g. https://maxd331992.github.io/) and add it to Redirect URLs.'
             : '<b>确认邮件点开跳到 localhost：</b>那是 Supabase 的默认 Site URL。两种解法：①（推荐，邀请制员工）Authentication → Providers → Email → 关掉 “Confirm email”，注册后直接登录；② 或者 Authentication → URL Configuration → 把 Site URL 改成你的网址（如 https://maxd331992.github.io/），并把同一网址加进 Redirect URLs。') + '</li>' +
         '</ul>' +
@@ -4672,12 +4674,12 @@ function renderSupport() {
 
   const wa = $('#supportWa');
   if (wa) {
-    wa.href = whatsappUrl(lang === 'en'
+    wa.href = whatsappUrl(lang !== 'zh'
       ? 'Hi ' + SUPPORT.name + ', I need help with MaxAI Portal.'
       : '你好 ' + SUPPORT.name + '，我在使用 MaxAI Portal 时遇到问题：', SUPPORT.wa);
   }
 
-  const tips = lang === 'en'
+  const tips = lang !== 'zh'
     ? [['1', 'Forgot password? Ask the admin to reset it from Supabase → Authentication → Users.'],
        ['2', 'No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.'],
        ['3', 'Cannot see orders? Your account may have no company assigned yet.'],
@@ -4695,7 +4697,7 @@ function renderSupport() {
   }
 
   $('#supportQr').innerHTML = '<div class="qr-loading">QR</div>';
-  fillQr('supportQr', whatsappUrl(lang === 'en'
+  fillQr('supportQr', whatsappUrl(lang !== 'zh'
     ? 'Hi ' + SUPPORT.name + ', I need help with MaxAI Portal.'
     : '你好 ' + SUPPORT.name + '，我在使用 MaxAI Portal 时遇到问题：', SUPPORT.wa));
 }
