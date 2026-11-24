@@ -1261,8 +1261,8 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
 /* ----------------------------------------------------------------------------
  * 1. Supabase 配置（也可以在登录页直接粘贴，存在浏览器本地）
  * -------------------------------------------------------------------------- */
-const SUPABASE_URL = 'https://djgxifkricznigwtlaba.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_RdKokILTvbPtqjR9EUHB-A_7iW9EuEc';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const CFG_STORE_KEY = 'maxai.supabase';
 
@@ -1915,6 +1915,47 @@ const EN = {
   "批次扣减失败，请手动核对库存": "Batch deduction failed — check stock manually",
   "批次数量不够，还有 {n} 没有挂批次（可手动补）": "Not enough batch quantity — {n} left unlinked",
   "已按到期日拆成 {n} 条明细（先进先出）": "Split into {n} lines by expiry date (FIFO)",
+  "确认已发货": "Mark as shipped",
+  "确认发货": "Confirm shipped",
+  "已标记为已发货": "Marked as shipped",
+  "这单没填电话，请用分享面板自己选人": "No phone on this order — pick the contact in the share sheet",
+  "通知老板": "Notify boss",
+  "这张订单可能已被删除": "This order may have been deleted",
+  "知道了": "Got it",
+  "还没有动态": "No activity yet",
+  "有人下单、发货或逾期时会出现在这里": "New orders, shipments and overdue items appear here",
+  "订单更新": "Order updated",
+  "上次单价 {u}；这次数量 {q} 与上次 {p} 不同，金额请自己确认": "Last unit price {u}; quantity {q} differs from last time ({p}) — please check the amount",
+  "订单 {no} 将标记为「已发货」，然后打开 WhatsApp 给客户发消息。": "Order {no} will be marked shipped, then WhatsApp opens for the customer.",
+  "未知错误": "Unknown error",
+  "数据重复：公司名称或编号已存在": "Duplicate: name or code already exists",
+  "全平台": "All companies",
+  "该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。": "This account has been disabled by an admin. To restore it, contact your company admin or the platform super admin.",
+  "账号尚未分配公司": "No company assigned",
+  "你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员在「用户管理」中为你分配公司。": "Your account is not linked to any company yet, so there is no data to show. Ask a super admin to assign one in Users.",
+  "邀请码已填好：{code}，设置密码即可完成注册。": "Invite code {code} is filled in — set a password to finish.",
+  "数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。": "Database not initialized. Ask the admin to run supabase-schema.sql, then reload.",
+  "Supabase SDK 加载失败：请检查网络后刷新页面。": "Failed to load the Supabase SDK — check your network and reload.",
+  "你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。": "Hi Max, the MaxAI Portal link shows “not configured”.",
+  "你好 Max，我需要一个 MaxAI Portal 的邀请码。": "Hi Max, I need an invite code for MaxAI Portal.",
+  "你好 {name}，我在使用 MaxAI Portal 时遇到问题：": "Hi {name}, I need help with MaxAI Portal.",
+  "忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。": "Forgot password? Ask the admin to reset it from Supabase → Authentication → Users.",
+  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请客服」生成。": "No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.",
+  "看不到订单：多半是账号还没分配公司。": "Cannot see orders? Your account may have no company assigned yet.",
+  "要新建公司或改角色：找超级管理员处理。": "Need a new company or role change? Only super admins can do it.",
+  "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整，可点下方「连接填错了？重新填写」。": "Cannot reach this Supabase project: {err}. Check that Project URL and anon key were copied completely, or tap “Re-enter connection” below.",
+  "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整。": "Cannot reach this Supabase project: {err}. Check that Project URL and anon key were copied completely.",
+  "冷冻品": "Frozen",
+  "海鲜": "Seafood",
+  "蔬菜": "Vegetables",
+  "干货": "Dry goods",
+  "熟食": "Cooked food",
+  "其他": "Other",
+  "录入人": "Entered by",
+  "Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳": "Mackerel, 12, kg, Frozen, 50, whole frozen\nPrawn, 24.5, pack, Seafood, 20, peeled",
+  "看图选货，一键下单": "Browse and order in one tap",
+  "上架商品、改价、传图": "List products, edit prices, upload photos",
+  "谁在什么时候改了什么": "Who changed what, and when",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
@@ -2463,9 +2504,9 @@ const MS = {
   "第一个注册的人会用这个名称建公司，之后注册可以留空": "Pendaftaran pertama menggunakan nama ini untuk mencipta syarikat; pendaftaran seterusnya boleh biarkan kosong.",
   "第一个注册的账号自动成为公司管理员；之后注册需要邀请码，没邀请码只能当普通成员（看不到数据）。": "Akaun pertama menjadi pentadbir syarikat secara automatik. Pendaftaran seterusnya memerlukan kod jemputan; tanpanya anda menjadi ahli biasa tanpa akses data.",
   "WhatsApp 联系 Max Dee": "WhatsApp Max Dee",
-  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n请用邮箱 {e} 注册（点开链接会自动填好）：\n{link}": "Hi! {c} invited you to MaxAI Portal.\nSign up with {e} (the link prefills it):\n{link}",
-  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n邀请码：{code}\n点开链接注册（会自动填好邀请码）：\n{link}\n有问题 WhatsApp 联系 {admin}：{phone}": "Hi! {c} invited you to MaxAI Portal.\nInvite code: {code}\nOpen the link to sign up (the code is prefilled):\n{link}\nAny questions? WhatsApp {admin}: {phone}",
-  "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}": "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}",
+    "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n请用邮箱 {e} 注册（点开链接会自动填好）：\n{link}": "Hai! {c} menjemput anda menyertai MaxAI Portal.\nDaftar dengan e-mel {e} (pautan akan mengisi sendiri):\n{link}",
+    "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\n邀请码：{code}\n点开链接注册（会自动填好邀请码）：\n{link}\n有问题 WhatsApp 联系 {admin}：{phone}": "Hai! {c} menjemput anda menyertai MaxAI Portal.\nKod jemputan: {code}\nBuka pautan untuk mendaftar (kod akan diisi sendiri):\n{link}\nAda soalan? WhatsApp {admin}: {phone}",
+      "你好！{c} 邀请你加入 MaxAI Portal 订单管理系统。\\n邀请码：{code}\\n点开链接注册（会自动填好邀请码）：\\n{link}\\n有问题 WhatsApp 联系 {admin}：{phone}": "Hai! {c} menjemput anda menyertai MaxAI Portal.\\nKod jemputan: {code}\\nBuka pautan untuk mendaftar (kod akan diisi sendiri):\\n{link}\\nAda soalan? WhatsApp {admin}: {phone}",
   "批量导入": "Import pukal",
   "批量导入商品": "Import produk pukal",
   "每行一个商品：名称, 价格, 单位, 分类, 库存, 简介。价格必填，其余可空。": "Satu produk setiap baris: nama, harga, unit, kategori, stok, penerangan. Harga wajib, yang lain pilihan.",
@@ -2539,6 +2580,47 @@ const MS = {
   "批次扣减失败，请手动核对库存": "Potongan batch gagal — semak stok secara manual",
   "批次数量不够，还有 {n} 没有挂批次（可手动补）": "Kuantiti batch tidak cukup — {n} belum dipautkan",
   "已按到期日拆成 {n} 条明细（先进先出）": "Dipecahkan kepada {n} baris ikut tarikh luput (FIFO)",
+  "确认已发货": "Tandakan dihantar",
+  "确认发货": "Sahkan dihantar",
+  "已标记为已发货": "Ditandakan sebagai dihantar",
+  "这单没填电话，请用分享面板自己选人": "Tiada telefon pada pesanan ini — pilih kenalan dalam panel kongsi",
+  "通知老板": "Maklumkan bos",
+  "这张订单可能已被删除": "Pesanan ini mungkin telah dipadam",
+  "知道了": "Faham",
+  "还没有动态": "Belum ada aktiviti",
+  "有人下单、发货或逾期时会出现在这里": "Pesanan baharu, penghantaran dan tunggakan akan muncul di sini",
+  "订单更新": "Pesanan dikemas kini",
+  "上次单价 {u}；这次数量 {q} 与上次 {p} 不同，金额请自己确认": "Harga seunit terakhir {u}; kuantiti {q} berbeza daripada sebelum ini ({p}) — sila semak jumlah",
+  "订单 {no} 将标记为「已发货」，然后打开 WhatsApp 给客户发消息。": "Pesanan {no} akan ditanda dihantar, kemudian WhatsApp dibuka untuk pelanggan.",
+  "未知错误": "Ralat tidak diketahui",
+  "数据重复：公司名称或编号已存在": "Pendua: nama atau kod syarikat sudah wujud",
+  "全平台": "Semua syarikat",
+  "该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。": "Akaun ini telah dilumpuhkan oleh pentadbir. Untuk memulihkannya, hubungi pentadbir syarikat atau pentadbir platform.",
+  "账号尚未分配公司": "Tiada syarikat ditetapkan",
+  "你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员在「用户管理」中为你分配公司。": "Akaun anda belum disambungkan kepada mana-mana syarikat, jadi tiada data untuk dipaparkan. Minta pentadbir platform menetapkannya dalam Pengguna.",
+  "邀请码已填好：{code}，设置密码即可完成注册。": "Kod jemputan {code} telah diisi — tetapkan kata laluan untuk selesai.",
+  "数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。": "Pangkalan data belum diinisialisasi. Minta pentadbir menjalankan supabase-schema.sql, kemudian muat semula.",
+  "Supabase SDK 加载失败：请检查网络后刷新页面。": "Gagal memuatkan SDK Supabase — semak rangkaian anda dan muat semula.",
+  "你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。": "Hai Max, pautan MaxAI Portal menunjukkan “belum dikonfigurasikan”.",
+  "你好 Max，我需要一个 MaxAI Portal 的邀请码。": "Hai Max, saya perlukan kod jemputan untuk MaxAI Portal.",
+  "你好 {name}，我在使用 MaxAI Portal 时遇到问题：": "Hai {name}, saya perlukan bantuan dengan MaxAI Portal.",
+  "忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。": "Lupa kata laluan? Minta pentadbir menetapkannya semula di Supabase → Authentication → Users.",
+  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请客服」生成。": "Tiada kod jemputan? Hubungi pentadbir melalui WhatsApp — kod dijana di Pengguna → Jemput.",
+  "看不到订单：多半是账号还没分配公司。": "Tidak nampak pesanan? Akaun anda mungkin belum ditetapkan kepada syarikat.",
+  "要新建公司或改角色：找超级管理员处理。": "Perlu syarikat baharu atau tukar peranan? Hanya pentadbir platform boleh melakukannya.",
+  "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整，可点下方「连接填错了？重新填写」。": "Tidak dapat menyambung ke projek Supabase ini: {err}. Pastikan Project URL dan anon key disalin sepenuhnya, atau ketik “Isi semula konfigurasi” di bawah.",
+  "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整。": "Tidak dapat menyambung ke projek Supabase ini: {err}. Pastikan Project URL dan anon key disalin sepenuhnya.",
+  "冷冻品": "Sejuk beku",
+  "海鲜": "Makanan laut",
+  "蔬菜": "Sayur-sayuran",
+  "干货": "Barang kering",
+  "熟食": "Makanan sedia",
+  "其他": "Lain-lain",
+  "录入人": "Dimasukkan oleh",
+  "Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳": "Mackerel, 12, kg, Sejuk beku, 50, beku penuh\nUdang, 24.5, pack, Makanan laut, 20, dikupas",
+  "看图选货，一键下单": "Lihat dan pesan dengan satu ketikan",
+  "上架商品、改价、传图": "Senaraikan produk, ubah harga, muat naik foto",
+  "谁在什么时候改了什么": "Siapa ubah apa, dan bila",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -2656,7 +2738,7 @@ const ICONS = {
 /* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
    登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
    同一分钟内连续部署，就在后面加 -r2 / -r3 … */
-const BUILD = 'v2026-11-22.1739';
+const BUILD = 'v2026-11-24.1330';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -2765,7 +2847,7 @@ function clientTimeZone() {
 
 /* 错误信息中文化 / 英文化 */
 function errMsg(e) {
-  const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || (lang !== 'zh' ? 'Unknown error' : '未知错误');
+  const raw = (e && (e.message || e.error_description || e.msg || e.hint)) || t('未知错误');
   const map = {
     'Invalid login credentials': '邮箱或密码不正确',
     'Email not confirmed': '邮箱还未验证。若确认链接打不开（跳到 localhost），请让管理员在 Supabase 后台手动确认这个账号，或关闭 Confirm email 后重新注册',
@@ -2780,7 +2862,7 @@ function errMsg(e) {
   }
   const s = String(raw);
   if (s.indexOf('JWT') !== -1) return t('登录状态已过期，请重新登录');
-  if (s.indexOf('duplicate key') !== -1) return lang !== 'zh' ? 'Duplicate: name or code already exists' : '数据重复：公司名称或编号已存在';
+  if (s.indexOf('duplicate key') !== -1) return t('数据重复：公司名称或编号已存在');
   if (s.indexOf('schema cache') !== -1 || s.indexOf('check_invite_code') !== -1) {
     return t('数据库还没升级到「邀请码」版本：请在 Supabase → SQL Editor 执行修复脚本 fix-invite-v2.sql，然后刷新本页。');
   }
@@ -3003,9 +3085,7 @@ function showAuth(opts) {
     const gwa = $('#cfgGuestWa');
     if (gwa) {
       gwa.href = whatsappUrl(
-        lang !== 'zh'
-          ? 'Hi Max, the MaxAI Portal link shows “not configured”.'
-          : '你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。',
+        t('你好 Max，我打开的 MaxAI Portal 显示「本站还没连接数据库」。'),
         SUPPORT.wa
       );
     }
@@ -3021,9 +3101,7 @@ function showAuth(opts) {
   if (o.sdkError) {
     banner.hidden = false;
     banner.className = 'auth-banner danger';
-    banner.textContent = lang !== 'zh'
-      ? 'Failed to load the Supabase SDK — check your network and reload.'
-      : 'Supabase SDK 加载失败：请检查网络后刷新页面。';
+    banner.textContent = t('Supabase SDK 加载失败：请检查网络后刷新页面。');
   } else if (o.error) {
     banner.hidden = false;
     banner.className = 'auth-banner danger';
@@ -3052,9 +3130,7 @@ function showAuth(opts) {
 
   /* 注册页「没有邀请码？」按钮 */
   const nwa = $('#noCodeWa');
-  if (nwa) nwa.href = whatsappUrl(lang !== 'zh'
-    ? 'Hi Max, I need an invite code for MaxAI Portal.'
-    : '你好 Max，我需要一个 MaxAI Portal 的邀请码。', SUPPORT.wa);
+  if (nwa) nwa.href = whatsappUrl(t('你好 Max，我需要一个 MaxAI Portal 的邀请码。'), SUPPORT.wa);
 
   /* 邀请链接带来的邀请码 */
   const codeInput = $('#registerForm input[name=invite_code]');
@@ -3063,9 +3139,7 @@ function showAuth(opts) {
     switchAuthTab('register');
     const ib = $('#inviteBanner');
     ib.hidden = false;
-    ib.textContent = lang !== 'zh'
-      ? 'Invite code ' + state.inviteCode + ' filled in — set a password to finish.'
-      : '邀请码已填好：' + state.inviteCode + '，设置密码即可完成注册。';
+    ib.textContent = tf('邀请码已填好：{code}，设置密码即可完成注册。', { code: state.inviteCode });
   }
 
   try {
@@ -3099,15 +3173,12 @@ async function probeFirstAdmin() {
     banner.hidden = false;
     if (msg.indexOf('does not exist') !== -1 || msg.indexOf('function') !== -1) {
       banner.className = 'auth-banner';
-      banner.textContent = lang !== 'zh'
-        ? 'Database not initialized. Ask the admin to run supabase-schema.sql, then reload.'
-        : '数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。';
+      banner.textContent = t('数据库还没初始化。请联系管理员执行 supabase-schema.sql，然后刷新本页。');
     } else {
       banner.className = 'auth-banner danger';
-      banner.textContent = lang !== 'zh'
-        ? 'Cannot reach this Supabase project: ' + errMsg(e)
-        : '连不上这个 Supabase 项目：' + errMsg(e) + '。请确认 Project URL 与 anon key 复制完整' +
-          (savedCfg && savedCfg.url ? '，可点下方「连接填错了？重新填写」。' : '。');
+      banner.textContent = (savedCfg && savedCfg.url
+        ? tf('连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整，可点下方「连接填错了？重新填写」。', { err: errMsg(e) })
+        : tf('连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整。', { err: errMsg(e) }));
     }
   }
 }
@@ -3238,34 +3309,9 @@ function openResetPassword() {
   });
 }
 
-/* 使用条款 / 隐私政策 */
+/* 使用条款 / 隐私政策：三种语言各一份，标题仍走词典 */
 function legalText(which) {
-  const L = lang !== 'zh' ? {
-    terms: {
-      title: 'Terms of Service',
-      body: [
-        ['1. Orders become valid after confirmation', 'Placing an order in this system does not by itself create a binding order. An order is only valid once an administrator confirms it.'],
-        ['2. Stock, price and delivery', 'Even after confirmation, availability, pricing or lead time may change due to stock, materials or supplier changes. We do not guarantee that price, stock or delivery date stays unchanged; any change will be communicated to you first.'],
-        ['3. Your account', 'Your account is for your own use. Keep your password safe and do not share or transfer the account. Contact the administrator immediately if you notice anything unusual.'],
-        ['4. Sensitive information', 'Do not enter bank card numbers, credit card numbers, passwords or other sensitive financial information in chat, remarks or any field of this system.'],
-        ['5. Changes and cancellations', 'You may request a change or cancellation before shipment. After shipment, requests are handled case by case; unconditional refunds are not promised.'],
-        ['6. Limitation of liability', 'This system is provided “as is”. We are not liable for indirect losses caused by interruptions or data delays.'],
-        ['7. Governing law', 'These terms are governed by the laws of Singapore.']
-      ]
-    },
-    privacy: {
-      title: 'Privacy Policy',
-      body: [
-        ['1. What we collect', 'We collect only what is needed to process your order: your name, contact phone number, email address and order details (product, quantity, amount, status).'],
-        ['2. What we never collect', 'We do not collect your NRIC / FIN, bank account numbers or credit card numbers.'],
-        ['3. How we use it', 'Your data is used to process, ship and support your orders, and to contact you about them.'],
-        ['4. Storage and access', 'Data is stored in Supabase (a cloud database). Access is role-based: super admin, company admin, and you (your own records).'],
-        ['5. No selling, no ads', 'We do not sell or rent your personal data, and we do not share it with third parties for advertising.'],
-        ['6. Your rights (PDPA)', 'You may ask to access, correct or delete your personal data. We will respond within a reasonable time.'],
-        ['7. Contact', 'WhatsApp Max Dee at +6587171111.']
-      ]
-    }
-  } : {
+  const zh = {
     terms: {
       title: '使用条款',
       body: [
@@ -3291,6 +3337,62 @@ function legalText(which) {
       ]
     }
   };
+
+  const en = {
+    terms: {
+      title: '使用条款',
+      body: [
+        ['1. Orders become valid after confirmation', 'Placing an order in this system does not by itself create a binding order. An order is only valid once an administrator confirms it.'],
+        ['2. Stock, price and delivery', 'Even after confirmation, availability, pricing or lead time may change due to stock, materials or supplier changes. We do not guarantee that price, stock or delivery date stays unchanged; any change will be communicated to you first.'],
+        ['3. Your account', 'Your account is for your own use. Keep your password safe and do not share or transfer the account. Contact the administrator immediately if you notice anything unusual.'],
+        ['4. Sensitive information', 'Do not enter bank card numbers, credit card numbers, passwords or other sensitive financial information in chat, remarks or any field of this system.'],
+        ['5. Changes and cancellations', 'You may request a change or cancellation before shipment. After shipment, requests are handled case by case; unconditional refunds are not promised.'],
+        ['6. Limitation of liability', 'This system is provided “as is”. We are not liable for indirect losses caused by interruptions or data delays.'],
+        ['7. Governing law', 'These terms are governed by the laws of Singapore.']
+      ]
+    },
+    privacy: {
+      title: '隐私政策',
+      body: [
+        ['1. What we collect', 'We collect only what is needed to process your order: your name, contact phone number, email address and order details (product, quantity, amount, status).'],
+        ['2. What we never collect', 'We do not collect your NRIC / FIN, bank account numbers or credit card numbers.'],
+        ['3. How we use it', 'Your data is used to process, ship and support your orders, and to contact you about them.'],
+        ['4. Storage and access', 'Data is stored in Supabase (a cloud database). Access is role-based: super admin, company admin, and you (your own records).'],
+        ['5. No selling, no ads', 'We do not sell or rent your personal data, and we do not share it with third parties for advertising.'],
+        ['6. Your rights (PDPA)', 'You may ask to access, correct or delete your personal data. We will respond within a reasonable time.'],
+        ['7. Contact', 'WhatsApp Max Dee at +6587171111.']
+      ]
+    }
+  };
+
+  const ms = {
+    terms: {
+      title: '使用条款',
+      body: [
+        ['1. Pesanan sah selepas pengesahan', 'Membuat pesanan dalam sistem ini tidak dengan sendirinya mewujudkan pesanan yang mengikat. Pesanan hanya sah selepas pentadbir mengesahkannya.'],
+        ['2. Stok, harga dan penghantaran', 'Walaupun selepas pengesahan, ketersediaan, harga atau tempoh penghantaran boleh berubah disebabkan perubahan stok, bahan atau pembekal. Kami tidak menjamin harga, stok atau tarikh penghantaran kekal tidak berubah; sebarang perubahan akan dimaklumkan kepada anda terlebih dahulu.'],
+        ['3. Akaun anda', 'Akaun anda adalah untuk kegunaan anda sendiri. Jaga kata laluan anda dan jangan kongsi atau pindahkan akaun. Hubungi pentadbir dengan segera jika anda melihat sesuatu yang luar biasa.'],
+        ['4. Maklumat sensitif', 'Jangan masukkan nombor kad bank, nombor kad kredit, kata laluan atau maklumat kewangan sensitif lain dalam sembang, catatan atau mana-mana ruangan sistem ini.'],
+        ['5. Perubahan dan pembatalan', 'Anda boleh meminta perubahan atau pembatalan sebelum penghantaran. Selepas penghantaran, permintaan diuruskan mengikut kes; bayaran balik tanpa syarat tidak dijanjikan.'],
+        ['6. Had liabiliti', 'Sistem ini disediakan “seadanya”. Kami tidak bertanggungjawab atas kerugian tidak langsung yang berpunca daripada gangguan atau kelewatan data.'],
+        ['7. Undang-undang yang mentadbir', 'Terma ini ditadbir oleh undang-undang Singapura.']
+      ]
+    },
+    privacy: {
+      title: '隐私政策',
+      body: [
+        ['1. Apa yang kami kumpul', 'Kami hanya mengumpul apa yang diperlukan untuk memproses pesanan anda: nama, nombor telefon hubungan, alamat e-mel dan butiran pesanan (produk, kuantiti, jumlah, status).'],
+        ['2. Apa yang kami tidak kumpul', 'Kami tidak mengumpul NRIC / FIN, nombor akaun bank atau nombor kad kredit anda.'],
+        ['3. Bagaimana kami menggunakannya', 'Data anda digunakan untuk memproses, menghantar dan menyokong pesanan anda, serta menghubungi anda mengenainya.'],
+        ['4. Penyimpanan dan akses', 'Data disimpan dalam Supabase (pangkalan data awan). Akses adalah berdasarkan peranan: pentadbir platform, pentadbir syarikat, dan anda (rekod anda sendiri).'],
+        ['5. Tiada jualan, tiada iklan', 'Kami tidak menjual atau menyewa data peribadi anda, dan tidak berkongsinya dengan pihak ketiga untuk pengiklanan.'],
+        ['6. Hak anda (PDPA)', 'Anda boleh meminta akses, pembetulan atau pemadaman data peribadi anda. Kami akan bertindak balas dalam tempoh yang munasabah.'],
+        ['7. Hubungi', 'WhatsApp Max Dee di +6587171111.']
+      ]
+    }
+  };
+
+  const L = lang === 'zh' ? zh : (lang === 'ms' ? ms : en);
   return L[which] || L.terms;
 }
 
@@ -3491,19 +3593,15 @@ async function enterApp() {
 
     if (me.status !== 'active') {
       showBlocked(
-        lang !== 'zh' ? 'Account disabled' : '账号已停用',
-        lang !== 'zh'
-          ? 'This account was disabled. Ask an admin to re-enable it.'
-          : '该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。'
+        t('账号已停用'),
+        t('该账号已被管理员停用，如需恢复请联系公司管理员或超级管理员。')
       );
       return;
     }
     if (me.role !== 'super_admin' && !me.company_id) {
       showBlocked(
-        lang !== 'zh' ? 'No company assigned' : '账号尚未分配公司',
-        lang !== 'zh'
-          ? 'Your account is not linked to a company yet, so there is no data to show. Ask a super admin to assign one in Users.'
-          : '你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员在「用户管理」中为你分配公司。'
+        t('账号尚未分配公司'),
+        t('你的账号还没有加入任何公司，因此暂时看不到数据。请联系超级管理员在「用户管理」中为你分配公司。')
       );
       return;
     }
@@ -3577,7 +3675,7 @@ function buildShell() {
   $('#userName').textContent = name;
   $('#userRole').textContent = t((ROLE[state.me.role] || {}).label || '');
   $('#sideCompany').textContent = isSuper()
-    ? (lang !== 'zh' ? 'All companies' : '全平台')
+    ? t('全平台')
     : (state.company ? state.company.name : t('未分配公司'));
   $('#btnMenu').innerHTML = ICONS.menu;
 }
@@ -4117,7 +4215,7 @@ function categoryOptions(selected) {
   const cur = selected || '';
   return '<option value="">' + esc(t('未分类')) + '</option>' +
     Object.keys(set).map(function (x) {
-      return '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>';
+      return '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' + esc(t(x)) + '</option>';
     }).join('');
 }
 
@@ -4936,20 +5034,15 @@ function renderSupport() {
 
   const wa = $('#supportWa');
   if (wa) {
-    wa.href = whatsappUrl(lang !== 'zh'
-      ? 'Hi ' + SUPPORT.name + ', I need help with MaxAI Portal.'
-      : '你好 ' + SUPPORT.name + '，我在使用 MaxAI Portal 时遇到问题：', SUPPORT.wa);
+    wa.href = whatsappUrl(tf('你好 {name}，我在使用 MaxAI Portal 时遇到问题：', { name: SUPPORT.name }), SUPPORT.wa);
   }
 
-  const tips = lang !== 'zh'
-    ? [['1', 'Forgot password? Ask the admin to reset it from Supabase → Authentication → Users.'],
-       ['2', 'No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.'],
-       ['3', 'Cannot see orders? Your account may have no company assigned yet.'],
-       ['4', 'Need a new company or role change? Only super admins can do it.']]
-    : [['1', '忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。'],
-       ['2', '没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请客服」生成。'],
-       ['3', '看不到订单：多半是账号还没分配公司。'],
-       ['4', '要新建公司或改角色：找超级管理员处理。']];
+  const tips = [
+    ['1', t('忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。')],
+    ['2', t('没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请客服」生成。')],
+    ['3', t('看不到订单：多半是账号还没分配公司。')],
+    ['4', t('要新建公司或改角色：找超级管理员处理。')]
+  ];
 
   const tipsBox = $('#supportTips');
   if (tipsBox) {
@@ -4959,9 +5052,7 @@ function renderSupport() {
   }
 
   $('#supportQr').innerHTML = '<div class="qr-loading">QR</div>';
-  fillQr('supportQr', whatsappUrl(lang !== 'zh'
-    ? 'Hi ' + SUPPORT.name + ', I need help with MaxAI Portal.'
-    : '你好 ' + SUPPORT.name + '，我在使用 MaxAI Portal 时遇到问题：', SUPPORT.wa));
+  fillQr('supportQr', whatsappUrl(tf('你好 {name}，我在使用 MaxAI Portal 时遇到问题：', { name: SUPPORT.name }), SUPPORT.wa));
 }
 
 /* 登录页底部的联系方式 */
@@ -5408,7 +5499,7 @@ async function loadMenu() {
   const keep = sel.value;
   sel.innerHTML = '<option value="">' + esc(t('全部分类')) + '</option>' +
     Object.keys(cats).sort().map(function (x) {
-      return '<option value="' + esc(x) + '">' + esc(x) + '</option>';
+      return '<option value="' + esc(x) + '">' + esc(t(x)) + '</option>';
     }).join('');
   sel.value = keep || '';
 
@@ -5421,7 +5512,7 @@ function menuList() {
     if (!isStaff() && !p.is_active) return false;
     if (state.menuCat && p.category !== state.menuCat) return false;
     if (q) {
-      const hay = ((p.name || '') + ' ' + (p.description || '') + ' ' + (p.category || '')).toLowerCase();
+      const hay = ((p.name || '') + ' ' + (p.description || '') + ' ' + (p.category || '') + ' ' + (p.category ? t(p.category) : '')).toLowerCase();
       if (hay.indexOf(q) === -1) return false;
     }
     return true;
@@ -5755,7 +5846,7 @@ function paintStockDays() {
     const d = state.stockDays[p.id];
     if (d === undefined || d === null) return;
     const row = document.querySelector('[data-act="product-edit"][data-id="' + p.id + '"]');
-    const td = row ? row.closest('tr').children[6] : null;   // 状态列前一位
+    const td = row ? row.closest('tr').children[5] : null;   // 可售列
     if (!td) return;
     const days = Math.floor(d);
     td.innerHTML = td.innerHTML + '<div class="cell-sub' + (days < 7 ? ' overdue' : '') + '">' +
@@ -5767,7 +5858,7 @@ function renderProducts() {
   const kw = (state.pSearch || '').toLowerCase().trim();
   const list = kw
     ? state.products.filter(function (p) {
-        return ((p.name || '') + ' ' + (p.category || '') + ' ' + (p.description || '')).toLowerCase().indexOf(kw) !== -1;
+        return ((p.name || '') + ' ' + (p.category || '') + ' ' + (p.category ? t(p.category) : '') + ' ' + (p.description || '')).toLowerCase().indexOf(kw) !== -1;
       })
     : state.products;
   const cur = (state.company && state.company.currency) || 'SGD';
@@ -5799,7 +5890,7 @@ function renderProducts() {
       '<td>' + thumb + '</td>' +
       '<td><div class="cell-main">' + esc(productName(p)) + '</div>' +
         (productDesc(p) ? '<div class="cell-sub">' + esc(productDesc(p).slice(0, 40)) + '</div>' : '') + '</td>' +
-      '<td class="muted">' + esc(p.category || '—') + '</td>' +
+      '<td class="muted">' + esc(p.category ? t(p.category) : '—') + '</td>' +
       '<td class="num strong">' + money(p.price, cur) + '</td>' +
       '<td class="muted">' + esc(p.unit || '—') + '</td>' +
       '<td class="num">' + (p.stock === null || p.stock === undefined
@@ -6278,7 +6369,7 @@ async function exportOrdersCsv() {
   if (!all.length) { toast(t('当前筛选下没有订单'), 'warn'); return; }
 
   const head = ['订单号', '下单时间', '客户', '联系方式', '商品', '数量', '金额', '货币', '付款状态', '已付', '未收', '付款截止', '状态', '归属公司', '录入人', '备注'];
-  const lines = [head.map(csvCell).join(',')];
+  const lines = [head.map(function (h) { return csvCell(t(h)); }).join(',')];
   all.forEach(function (o) {
     lines.push([
       o.order_no, fmtDate(o.ordered_at), o.customer_name, o.customer_phone,
@@ -7047,7 +7138,7 @@ function openBulkImport() {
       '<div class="hint" style="margin:8px 0 12px">' + esc(t('支持 .xlsx / .xls / .csv；也可以直接把内容粘贴到下面')) + '</div>' +
       '<label class="field"><span>' + esc(t('或粘贴文本')) + '</span>' +
         '<textarea class="textarea" id="bulkCsv" name="csv" rows="7" spellcheck="false" style="font-family:var(--mono);font-size:12.5px" placeholder="' +
-          esc('Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳') + '"></textarea></label>' +
+          esc(t('Mackerel, 12, kg, 冷冻鱼, 50, 整条急冻\nPrawn, 24.5, pack, 海鲜, 20, 去壳')) + '"></textarea></label>' +
       '<div class="hint" style="margin-top:8px">' + esc(t('列顺序：名称, 价格, 单位, 分类, 库存, 简介, 英文名, 马来文名。只有名称和价格必填。')) + '</div>' +
       '<div id="bulkPreview" style="margin-top:12px"></div>' +
       '<div class="form-error"></div>' +
@@ -7118,7 +7209,7 @@ function renderBulkPreview() {
       '<td>' + esc(r.name || '—') + '</td>' +
       '<td class="num">' + (r.ok ? money(r.price, (state.company && state.company.currency) || 'SGD') : '<span class="low-stock">' + esc(r.why) + '</span>') + '</td>' +
       '<td class="muted">' + esc(r.unit || '—') + '</td>' +
-      '<td class="muted">' + esc(r.category || '—') + '</td>' +
+      '<td class="muted">' + esc(r.category ? t(r.category) : '—') + '</td>' +
       '<td class="num">' + esc(r.stock || '—') + '</td></tr>';
   }).join('');
 
