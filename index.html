@@ -1956,6 +1956,17 @@ const EN = {
   "看图选货，一键下单": "Browse and order in one tap",
   "上架商品、改价、传图": "List products, edit prices, upload photos",
   "谁在什么时候改了什么": "Who changed what, and when",
+  "订单已取消：商品、数量、金额已锁定。如需修改，请先把状态改回其他状态并保存，再改这三项。": "This order is cancelled: product, quantity and amount are locked. Change the status to another value and save first, then edit these three fields.",
+  "订单已更新，但明细没重建，库存可能不准 —— 请到商品页手动调库存": "Order updated, but its line item was not rebuilt — stock may be off. Adjust stock on the Products page.",
+  "将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。删除档案后，还要去 Supabase → Authentication → Users 里删掉这个邮箱的登录账号，否则该邮箱无法重新注册。此操作不可恢复，建议优先使用「停用」。": "This deletes the profile of “{x}”. The account can no longer be used and its orders will be deleted too. After deleting the profile, also delete this email’s login account in Supabase → Authentication → Users, otherwise the email cannot sign up again. This cannot be undone — disabling the account is recommended instead.",
+  "还要删登录账号": "Also delete the login account",
+  "档案已删除，但登录账号还在 Supabase。请到 Supabase → Authentication → Users 找到并删除这个邮箱，否则该邮箱无法重新注册。": "The profile is deleted, but the login account still exists in Supabase. Go to Supabase → Authentication → Users, find and delete this email, otherwise the email cannot sign up again.",
+  "复制邮箱": "Copy email",
+  "库存必须是数字": "Stock must be a number",
+  "库存必须是不小于 0 的数字": "Stock must be a number ≥ 0",
+  "保质期必须是数字": "Shelf life must be a number",
+  "保质期必须是不小于 0 的数字": "Shelf life must be a number ≥ 0",
+  "普通用户只能看菜单、下自己的单、看自己的订单；公司管理员能管理全公司订单、商品和用户。": "Members can only browse the menu, place their own orders and see their own orders; company admins can manage the whole company’s orders, products and users.",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
@@ -2621,6 +2632,17 @@ const MS = {
   "看图选货，一键下单": "Lihat dan pesan dengan satu ketikan",
   "上架商品、改价、传图": "Senaraikan produk, ubah harga, muat naik foto",
   "谁在什么时候改了什么": "Siapa ubah apa, dan bila",
+  "订单已取消：商品、数量、金额已锁定。如需修改，请先把状态改回其他状态并保存，再改这三项。": "Pesanan ini telah dibatalkan: produk, kuantiti dan jumlah dikunci. Tukar status kepada nilai lain dan simpan dahulu, kemudian ubah tiga ruangan ini.",
+  "订单已更新，但明细没重建，库存可能不准 —— 请到商品页手动调库存": "Pesanan dikemas kini, tetapi item pesanan tidak dibina semula — stok mungkin tidak tepat. Laraskan stok di halaman Produk.",
+  "将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。删除档案后，还要去 Supabase → Authentication → Users 里删掉这个邮箱的登录账号，否则该邮箱无法重新注册。此操作不可恢复，建议优先使用「停用」。": "Ini akan memadam profil “{x}”. Akaun tidak boleh digunakan lagi dan pesanannya turut dipadam. Selepas memadam profil, padam juga akaun log masuk e-mel ini di Supabase → Authentication → Users, jika tidak e-mel ini tidak boleh mendaftar semula. Tindakan ini tidak boleh dibatalkan — sebaiknya gunakan “Nyahaktif”.",
+  "还要删登录账号": "Padam juga akaun log masuk",
+  "档案已删除，但登录账号还在 Supabase。请到 Supabase → Authentication → Users 找到并删除这个邮箱，否则该邮箱无法重新注册。": "Profil telah dipadam, tetapi akaun log masuk masih ada dalam Supabase. Pergi ke Supabase → Authentication → Users, cari dan padam e-mel ini, jika tidak e-mel ini tidak boleh mendaftar semula.",
+  "复制邮箱": "Salin e-mel",
+  "库存必须是数字": "Stok mesti nombor",
+  "库存必须是不小于 0 的数字": "Stok mesti nombor ≥ 0",
+  "保质期必须是数字": "Tempoh simpan mesti nombor",
+  "保质期必须是不小于 0 的数字": "Tempoh simpan mesti nombor ≥ 0",
+  "普通用户只能看菜单、下自己的单、看自己的订单；公司管理员能管理全公司订单、商品和用户。": "Ahli biasa hanya boleh melihat menu, membuat pesanan sendiri dan melihat pesanan sendiri; pentadbir syarikat boleh mengurus pesanan, produk dan pengguna seluruh syarikat.",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -2738,7 +2760,7 @@ const ICONS = {
 /* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
    登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
    同一分钟内连续部署，就在后面加 -r2 / -r3 … */
-const BUILD = 'v2026-11-24.1330';
+const BUILD = 'v2026-11-24.1436';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -4247,8 +4269,15 @@ function openOrderModal(order) {
       '<input class="input" value="' + esc(state.company ? state.company.name : t('未分配公司')) + '" disabled></label>';
   }
 
+  const orderMeta = order
+    ? ' data-status="' + esc(order.status) + '" data-orig-qty="' + esc(order.quantity) +
+      '" data-orig-amount="' + esc(order.amount) + '" data-orig-product="' + esc(order.product_name) + '"'
+    : '';
+  const cancelledLock = editing && order.status === 'cancelled';
+  const lockAttr = cancelledLock ? ' disabled' : '';
+
   openModal(t(editing ? '编辑订单' : '新建订单'),
-    '<form id="orderForm" data-id="' + (order ? order.id : '') + '" novalidate>' +
+    '<form id="orderForm" data-id="' + (order ? order.id : '') + '"' + orderMeta + ' novalidate>' +
       '<div class="form-grid">' +
         '<label class="field"><span>' + esc(t('客户姓名')) + '<em>*</em></span>' +
           '<input class="input" name="customer_name" list="dlCustomers" autocomplete="off" required maxlength="50" value="' + esc(order ? order.customer_name : '') + '"></label>' +
@@ -4256,14 +4285,15 @@ function openOrderModal(order) {
         '<label class="field"><span>' + esc(t('联系方式')) + '</span>' +
           '<input class="input" name="customer_phone" maxlength="40" value="' + esc(order ? order.customer_phone : '') + '"></label>' +
         '<label class="field span-2"><span>' + esc(t('商品名称')) + '<em>*</em></span>' +
-          '<input class="input" name="product_name" list="dlProducts" autocomplete="off" required maxlength="80" value="' + esc(order ? order.product_name : '') + '"></label>' +
+          '<input class="input" name="product_name" list="dlProducts" autocomplete="off" required maxlength="80" value="' + esc(order ? order.product_name : '') + '"' + lockAttr + '></label>' +
         '<datalist id="dlProducts">' + (state.hist.products || []).map(function (x) { return '<option value="' + esc(x) + '"></option>'; }).join('') + '</datalist>' +
         '<label class="field"><span>' + esc(t('数量')) + '<em>*</em></span>' +
-          '<input class="input" name="quantity" type="number" min="0" step="1" required value="' + esc(order ? order.quantity : 1) + '"></label>' +
+          '<input class="input" name="quantity" type="number" min="0" step="1" required value="' + esc(order ? order.quantity : 1) + '"' + lockAttr + '></label>' +
         '<label class="field"><span>' + esc(t('金额')) + '<em>*</em> <b class="cur-tag" id="amtCur">' +
           esc(curSymbol(editing ? companyCurrency(order.company_id) : (isSuper() ? (state.companies[0] && state.companies[0].currency) : (state.company && state.company.currency)) || 'SGD')) +
           '</b></span>' +
-          '<input class="input" name="amount" type="number" min="0" step="0.01" required value="' + esc(order ? order.amount : 0) + '"></label>' +
+          '<input class="input" name="amount" type="number" min="0" step="0.01" required value="' + esc(order ? order.amount : 0) + '"' + lockAttr + '></label>' +
+        (cancelledLock ? '<p class="hint span-2" style="margin:-2px 0 4px">' + esc(t('订单已取消：商品、数量、金额已锁定。如需修改，请先把状态改回其他状态并保存，再改这三项。')) + '</p>' : '') +
         '<label class="field"><span>' + esc(t('状态')) + '</span>' +
           '<select class="select" name="status">' + statusOptions(order ? order.status : 'pending') + '</select></label>' +
         '<label class="field"><span>' + esc(t('付款状态')) + '</span>' +
@@ -4327,6 +4357,29 @@ function openOrderModal(order) {
   }
 }
 
+/* 编辑订单后重建一条明细：删旧明细会触发库存回补，插新明细会扣新数量 */
+async function rebuildOrderItems(orderId, payload) {
+  const prod = findProductByName(payload.product_name);
+  /* 商品目录里没有同名商品：多半是多商品购物车订单，别动旧明细，避免把库存全退掉 */
+  if (!prod) return false;
+  const del = await sb.from('order_items').delete().eq('order_id', orderId);
+  if (del.error) throw del.error;
+  const q = Number(payload.quantity) || 1;
+  const amount = Number(payload.amount) || 0;
+  const itRes = await sb.from('order_items').insert({
+    order_id: orderId,
+    product_id: prod.id,
+    product_name: payload.product_name,
+    price: Math.round((amount / (q || 1)) * 100) / 100,
+    quantity: q,
+    amount: amount
+  }).select();
+  if (itRes.error) throw itRes.error;
+  const itRow = (itRes.data && itRes.data[0]) || null;
+  if (itRow && itRow.id) await allocateBatches(itRow.id, prod.id, q);
+  return true;
+}
+
 async function saveOrder(event) {
   event.preventDefault();
   const form = event.target;
@@ -4334,6 +4387,8 @@ async function saveOrder(event) {
   const errBox = form.querySelector('.form-error');
   errBox.textContent = '';
   const id = form.dataset.id || '';
+  const oldStatus = form.dataset.status || '';
+  const wasCancelled = !!id && oldStatus === 'cancelled';
 
   const customerName = form.customer_name.value.trim();
   const productName = form.product_name.value.trim();
@@ -4358,9 +4413,9 @@ async function saveOrder(event) {
   const companyId = isSuper() ? form.company_id.value : myCompanyId();
   if (!companyId) { errBox.textContent = t('请选择公司'); return; }
 
-  /* 库存检查：不够就弹三选一，老板决定 */
+  /* 库存检查：不够就弹三选一，老板决定（编辑已取消的订单不涉及库存） */
   await loadStockMap(true);
-  if (!state.oversell) {
+  if (!wasCancelled && !state.oversell) {
     const r = checkStock(productName, quantity);
     if (r && r.stock <= 0) {
       errBox.textContent = tf('{n} 库存为 0，不能下单', { n: r.p.name });
@@ -4402,14 +4457,22 @@ async function saveOrder(event) {
     }
   } catch (e) { /* 提示层失败不影响保存 */ }
 
+  /* 取消单：商品/数量/金额用原值，避免把库存算乱 */
+  let saveProductName = productName;
+  let saveQuantity = quantity;
+  let saveAmount = amount;
+  if (wasCancelled) {
+    saveProductName = form.dataset.origProduct || productName;
+    saveQuantity = Number(form.dataset.origQty);
+    saveAmount = Number(form.dataset.origAmount);
+  }
+
   const payload = {
-    company_id: companyId,
-    user_id: state.me.id,
     customer_name: customerName,
     customer_phone: form.customer_phone.value.trim() || null,
-    product_name: productName,
-    quantity: quantity,
-    amount: amount,
+    product_name: saveProductName,
+    quantity: saveQuantity,
+    amount: saveAmount,
     payment_status: form.payment_status.value,
     paid_amount: paidAmount,
     due_at: form.due_at.value ? form.due_at.value : null,
@@ -4417,14 +4480,27 @@ async function saveOrder(event) {
     ordered_at: form.ordered_at.value ? new Date(form.ordered_at.value).toISOString() : new Date().toISOString(),
     remark: form.remark.value.trim() || null
   };
+  /* 编辑时不带 company_id / user_id：订单归属保持不变 */
+  if (!id) { payload.company_id = companyId; payload.user_id = state.me.id; }
 
   btn.disabled = true;
   btn.textContent = t('保存中…');
   try {
     let res;
     if (id) res = await sb.from('orders').update(payload).eq('id', id);
-    else { payload.user_id = state.me.id; res = await sb.from('orders').insert(payload).select(); }
+    else res = await sb.from('orders').insert(payload).select();
     if (res.error) throw res.error;
+
+    /* 编辑且不是取消单：重建明细，让库存按新数量重算（删旧明细先回补，插新明细则扣新数） */
+    if (id && !wasCancelled && payload.status !== 'cancelled') {
+      try {
+        await rebuildOrderItems(id, payload);
+        loadStockMap(true).catch(function () {});
+      } catch (e) {
+        toast(t('订单已更新，但明细没重建，库存可能不准 —— 请到商品页手动调库存'), 'error');
+        console.error('rebuild order_items failed', e);
+      }
+    }
 
     closeModal();
 
@@ -4681,13 +4757,14 @@ function openInviteModal() {
           '<input class="input" name="note" maxlength="40" placeholder="' + esc(t('选填，方便你自己认人')) + '"></label>' +
         '<label class="field"><span>' + esc(t('角色')) + '</span>' +
           '<select class="select" name="role">' +
-            (isSup ? '<option value="company_admin">' + esc(t('公司管理员')) + '</option>' : '') +
+            '<option value="company_admin">' + esc(t('公司管理员')) + '</option>' +
             '<option value="user" selected>' + esc(t('普通用户')) + '</option>' +
           '</select></label>' +
         '<label class="field"><span>' + esc(t('有效期')) + '</span>' +
           '<input class="input" value="' + esc(t('长期有效，用完自动作废')) + '" disabled></label>' +
         companyField +
       '</div>' +
+      '<p class="hint" style="margin-top:10px">' + esc(t('普通用户只能看菜单、下自己的单、看自己的订单；公司管理员能管理全公司订单、商品和用户。')) + '</p>' +
       '<p class="hint" style="margin-top:12px">' +
         esc(t('生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。')) + '</p>' +
       '<div class="form-error"></div>' +
@@ -4817,7 +4894,7 @@ async function deleteUser(id) {
   if (!u) return;
   const ok = await confirmAction({
     title: t('删除成员'),
-    text: tf('将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。此操作不可恢复，建议优先使用「停用」。', { x: u.full_name || u.email }),
+    text: tf('将删除「{x}」的档案，该账号将无法继续使用，其名下订单也会一并删除。删除档案后，还要去 Supabase → Authentication → Users 里删掉这个邮箱的登录账号，否则该邮箱无法重新注册。此操作不可恢复，建议优先使用「停用」。', { x: u.full_name || u.email }),
     okText: t('确认删除'),
     danger: true,
     requireText: u.email
@@ -4831,6 +4908,13 @@ async function deleteUser(id) {
   if (res.error) { toast(errMsg(res.error), 'error'); return; }
   toast(t('成员已删除'), 'ok');
   await loadUsers();
+
+  /* profiles 删了，auth.users 里的登录账号还在（删它必须 service_role，不能放前端） */
+  openModal(t('还要删登录账号'),
+    '<p style="margin:0 0 10px">' + esc(t('档案已删除，但登录账号还在 Supabase。请到 Supabase → Authentication → Users 找到并删除这个邮箱，否则该邮箱无法重新注册。')) + '</p>' +
+    '<div class="copy-box"><code id="deletedUserEmail">' + esc(u.email || '') + '</code>' +
+      '<button class="btn sm" type="button" data-act="copy-el" data-target="deletedUserEmail">' + esc(t('复制邮箱')) + '</button></div>' +
+    '<div class="form-actions"><button class="btn primary" type="button" data-close>' + esc(t('完成')) + '</button></div>', 'sm');
 }
 
 async function revokeInvite(id) {
@@ -5072,7 +5156,15 @@ function guardAll() {
 }
 function guardGet(email) {
   const g = guardAll()[email] || {};
-  return { fails: Number(g.fails || 0), lockUntil: Number(g.lockUntil || 0) };
+  let fails = Number(g.fails || 0);
+  let lockUntil = Number(g.lockUntil || 0);
+  /* 锁已经过期：计数清零，否则错一次会立刻又锁 15 分钟 */
+  if (lockUntil > 0 && lockUntil <= Date.now()) {
+    fails = 0;
+    lockUntil = 0;
+    guardSet(email, { fails: 0, lockUntil: 0 });
+  }
+  return { fails: fails, lockUntil: lockUntil };
 }
 function guardSet(email, v) {
   const a = guardAll();
@@ -6111,8 +6203,30 @@ async function saveProduct(event) {
   if (!name) { errBox.textContent = t('请填写商品名'); return; }
   if (!isFinite(price) || price < 0) { errBox.textContent = t('价格必须是不小于 0 的数字'); return; }
 
+  /* 库存 / 保质期：空 = 不限 / 不设；填了就必须是数字，不能悄悄变成 null */
+  const stockRaw = String(form.stock.value || '').trim();
+  let stockVal = null;
+  if (form.stock.validity && form.stock.validity.badInput) { errBox.textContent = t('库存必须是数字'); return; }
+  if (stockRaw !== '') {
+    const n = Number(stockRaw);
+    if (!isFinite(n)) { errBox.textContent = t('库存必须是数字'); return; }
+    if (n < 0) { errBox.textContent = t('库存必须是不小于 0 的数字'); return; }
+    stockVal = n;
+  }
+  const shelfRaw = form.shelf_life_days ? String(form.shelf_life_days.value || '').trim() : '';
+  let shelfVal = null;
+  if (form.shelf_life_days && form.shelf_life_days.validity && form.shelf_life_days.validity.badInput) {
+    errBox.textContent = t('保质期必须是数字'); return;
+  }
+  if (shelfRaw !== '') {
+    const n = Number(shelfRaw);
+    if (!isFinite(n)) { errBox.textContent = t('保质期必须是数字'); return; }
+    if (n < 0) { errBox.textContent = t('保质期必须是不小于 0 的数字'); return; }
+    shelfVal = n;
+  }
+
   const payload = {
-    company_id: isSuper() ? (state.companies[0] && state.companies[0].id) : myCompanyId(),
+    company_id: isSuper() ? (form.company_id ? form.company_id.value : '') : myCompanyId(),
     name: name,
     description: form.description.value.trim() || null,
     price: price,
@@ -6122,8 +6236,8 @@ async function saveProduct(event) {
     name_ms: (form.name_ms && form.name_ms.value.trim()) || null,
     desc_en: (form.desc_en && form.desc_en.value.trim()) || null,
     desc_ms: (form.desc_ms && form.desc_ms.value.trim()) || null,
-    stock: form.stock.value === '' ? null : Number(form.stock.value),
-    shelf_life_days: (form.shelf_life_days && form.shelf_life_days.value !== '') ? Number(form.shelf_life_days.value) : null,
+    stock: stockVal,
+    shelf_life_days: shelfVal,
     image_url: form.image_url.value || null,
     is_active: form.is_active.value === 'true'
   };
@@ -6456,9 +6570,10 @@ function buildOrderRemark(form) {
 
 function buildDueDate(form) {
   const ddate = form.delivery_date ? form.delivery_date.value : '';
-  if (!ddate) return null;
-  const d = new Date(ddate + 'T00:00:00');
   const pm = form.payment_method ? form.payment_method.value : 'cod';
+  /* 没填送货日期：赊账 = 下单当天 + 30 天；现付 = 下单当天 */
+  const base = ddate ? new Date(ddate + 'T00:00:00') : new Date();
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
   if (pm === 'credit') d.setDate(d.getDate() + 30);
   const p = function (n) { return String(n).padStart(2, '0'); };
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
@@ -7173,11 +7288,34 @@ async function handleBulkFile(event) {
   }
 }
 
+/* 按逗号 / 分号 / Tab 切列，但引号里的分隔符不切（"Ikan, segar" 不会被切错） */
+function splitBulkLine(line) {
+  const out = [];
+  let cur = '';
+  let quoted = false;
+  const s = String(line || '');
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { cur += '"'; i++; }
+        else quoted = false;
+      } else cur += ch;
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ',' || ch === '，' || ch === ';' || ch === '；' || ch === '\t') {
+      out.push(cur); cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out.map(function (x) { return x.trim(); });
+}
+
 function parseBulkRows(text) {
   const lines = String(text || '').split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
   const items = [];
   lines.forEach(function (line, i) {
-    const c = line.split(/\t|,|，|;|；/).map(function (s) { return s.trim(); });
+    const c = splitBulkLine(line);
     const name = c[0] || '';
     if (!name) return;
     if (/^(名称|商品名|name)$/i.test(name)) return;
@@ -7187,7 +7325,13 @@ function parseBulkRows(text) {
     if (priceRaw === '' || priceRaw === undefined || !isFinite(price) || price < 0) {
       ok = false; why = t('缺价格或价格不是数字');
     }
-    items.push({ no: i + 1, name: name, price: ok ? price : 0, unit: c[2] || '', category: c[3] || '', stock: c[4] || '', description: c[5] || '', name_en: c[6] || '', name_ms: c[7] || '', ok: ok, why: why });
+    const stockRaw = c[4] || '';
+    if (stockRaw !== '') {
+      const sn = Number(stockRaw);
+      if (!isFinite(sn)) { ok = false; if (!why) why = t('库存必须是数字'); }
+      else if (sn < 0) { ok = false; if (!why) why = t('库存必须是不小于 0 的数字'); }
+    }
+    items.push({ no: i + 1, name: name, price: ok ? price : 0, unit: c[2] || '', category: c[3] || '', stock: stockRaw, description: c[5] || '', name_en: c[6] || '', name_ms: c[7] || '', ok: ok, why: why });
   });
   return items;
 }
@@ -7236,7 +7380,7 @@ async function doBulkImport(event) {
   const items = parseBulkRows($('#bulkCsv').value).filter(function (i) { return i.ok; });
   if (!items.length) { errBox.textContent = t('没有可导入的行，检查一下格式'); return; }
 
-  const cid = isSuper() ? (state.companies[0] && state.companies[0].id) : myCompanyId();
+  const cid = isSuper() ? (form.company_id ? form.company_id.value : '') : myCompanyId();
   if (!cid) { errBox.textContent = t('请先选择公司'); return; }
 
   const payload = items.map(function (r) {
