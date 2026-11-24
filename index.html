@@ -2760,7 +2760,7 @@ const ICONS = {
 /* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
    登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
    同一分钟内连续部署，就在后面加 -r2 / -r3 … */
-const BUILD = 'v2026-11-24.1535';
+const BUILD = 'v2026-11-24.1545';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -5646,7 +5646,7 @@ function renderMenu() {
       (isStaff()
         ? esc(t('可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单'))
         : esc(t('商家还没有上架商品，可以直接在「订单管理」手动下单'))) +
-      (state.company && state.company.phone
+      (!isStaff() && state.company && state.company.phone
         ? '<div style="margin-top:14px"><a class="btn primary" target="_blank" rel="noopener" href="' + esc(waLinkFor(state.company.phone, (state.company && state.company.currency) || 'SGD', t('你好，我想咨询你们的产品'))) + '">' + esc(t('联系卖家')) + '</a></div>'
         : '') + '</div></div>';
     updateCartBar();
