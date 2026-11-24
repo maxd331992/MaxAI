@@ -1004,8 +1004,8 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
 
       <!-- ---------- 仪表盘 ---------- -->
       <section class="view active" id="view-dashboard">
-        <div class="card" id="onboardCard" hidden><div class="card-head" style="border-bottom:0;padding-bottom:0"><h3>三步开始用</h3><div class="head-actions"><span class="badge blue">0 / 3</span><button class="btn ghost sm" type="button" data-act="onboard-close">不再提示</button></div></div><div class="onboard"><div class="onboard-sub">跟着走完这三步，你的团队就能正常接单了</div><div class="onboard-progress"><i style="width:0%"></i></div><div class="onboard-step now"><div class="n">1</div><div class="t"><div class="st">邀请第一位顾客</div><div class="sd">用户管理 → 邀请顾客，发二维码或邀请码给他</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="users" data-sub="invite">去完成</button></div><div class="onboard-step "><div class="n">2</div><div class="t"><div class="st">下第一笔订单</div><div class="sd">订单管理 → 新建订单，金额会自动带公司货币</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders" data-sub="new-order">去完成</button></div><div class="onboard-step "><div class="n">3</div><div class="t"><div class="st">把订单标记为已发货</div><div class="sd">熟悉一下状态流转：待处理 → 已确认 → 已发货</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders">去完成</button></div></div></div>
-        <div class="hello" id="helloCard"><div class="hello-main"><div class="hello-kicker">凌晨好，</div><div class="hello-sub">公司管理员 ·  · 11月22日星期日</div></div><div class="hello-actions"><button class="btn light" type="button" data-act="new-order">+ 新建订单</button><button class="btn light" type="button" data-act="invite">+ 邀请顾客</button></div></div>
+        <div class="card" id="onboardCard" hidden><div class="card-head" style="border-bottom:0;padding-bottom:0"><h3>三步开始用</h3><div class="head-actions"><span class="badge blue">0 / 3</span><button class="btn ghost sm" type="button" data-act="onboard-close">不再提示</button></div></div><div class="onboard"><div class="onboard-sub">跟着走完这三步，你的团队就能正常接单了</div><div class="onboard-progress"><i style="width:0%"></i></div><div class="onboard-step now"><div class="n">1</div><div class="t"><div class="st">邀请第一位用户</div><div class="sd">用户管理 → 邀请用户，发二维码或邀请码给他</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="users" data-sub="invite">去完成</button></div><div class="onboard-step "><div class="n">2</div><div class="t"><div class="st">下第一笔订单</div><div class="sd">订单管理 → 新建订单，金额会自动带公司货币</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders" data-sub="new-order">去完成</button></div><div class="onboard-step "><div class="n">3</div><div class="t"><div class="st">把订单标记为已发货</div><div class="sd">熟悉一下状态流转：待处理 → 已确认 → 已发货</div></div><button class="btn sm go" type="button" data-act="onboard-go" data-go="orders">去完成</button></div></div></div>
+        <div class="hello" id="helloCard"><div class="hello-main"><div class="hello-kicker">凌晨好，</div><div class="hello-sub">公司管理员 ·  · 11月22日星期日</div></div><div class="hello-actions"><button class="btn light" type="button" data-act="new-order">+ 新建订单</button><button class="btn light" type="button" data-act="invite">+ 邀请用户</button></div></div>
         <div class="stat-grid" id="statGrid"><div class="stat "><div class="stat-label">订单总数</div><div class="stat-value">0</div><div class="stat-foot">累计 S$0</div></div><div class="stat info"><div class="stat-label">本月订单</div><div class="stat-value">0</div><div class="stat-foot">本月新增</div></div><div class="stat warn"><div class="stat-label">待处理</div><div class="stat-value">0</div><div class="stat-foot">需要跟进</div></div><div class="stat ok"><div class="stat-label">本月金额</div><div class="stat-value">S$0.00</div><div class="stat-foot">本月成交</div></div></div>
         <div class="grid-2" id="gridOrderCharts">
           <div class="card">
@@ -1073,7 +1073,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
             <h3><span data-i18n="公司成员">公司成员</span> <span class="muted sm-text" id="usersCount">共 0 人</span></h3>
             <div class="head-actions">
               <input class="input head-search" id="fuser" data-i18n-ph="搜索姓名 / 邮箱" placeholder="搜索姓名 / 邮箱" autocomplete="off" style="">
-              <button class="btn primary sm" type="button" data-act="invite" data-i18n="+ 邀请顾客">+ 邀请顾客</button>
+              <button class="btn primary sm" type="button" data-act="invite" data-i18n="+ 邀请用户">+ 邀请用户</button>
             </div>
           </div>
           <div class="table-wrap"><table class="table" id="usersTable"><tbody><tr><td><div class="empty"><b>暂无成员</b>点击「+ 邀请用户」把成员拉进来</div></td></tr></tbody></table></div>
@@ -1084,7 +1084,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
             <h3 data-i18n="待使用的邀请码">待使用的邀请码</h3>
             <span class="muted sm-text" data-i18n="让对方扫码或输入邀请码，注册即自动加入">让对方扫码或输入邀请码，注册即自动加入</span>
           </div>
-          <div class="table-wrap"><table class="table" id="invitesTable"><tbody><tr><td><div class="empty"><b>没有待使用的邀请码</b>点「邀请顾客」生成二维码和邀请码</div></td></tr></tbody></table></div>
+          <div class="table-wrap"><table class="table" id="invitesTable"><tbody><tr><td><div class="empty"><b>没有待使用的邀请码</b>点「邀请用户」生成二维码和邀请码</div></td></tr></tbody></table></div>
         </div>
       </section>
 
@@ -1436,11 +1436,11 @@ const EN = {
   "建第一家公司": "Create your first company",
   "公司管理 → 新建公司，填名称和默认货币": "Companies → New company: name and default currency",
   "生成第一个邀请码": "Generate the first invite",
-  "用户管理 → 邀请顾客，把二维码或邀请码发给对方": "Users → Invite customer: send them the QR or code",
+  "用户管理 → 邀请用户，把二维码或邀请码发给对方": "Users → Invite user: send them the QR or code",
   "等对方注册后登录看看": "Wait for them to sign up",
   "用他注册的邮箱能登录，说明租户开通成功": "If their email can sign in, the tenant is live",
-  "邀请第一位顾客": "Invite your first customer",
-  "用户管理 → 邀请顾客，发二维码或邀请码给他": "Users → Invite customer: send the QR or code",
+  "邀请第一位用户": "Invite your first user",
+  "用户管理 → 邀请用户，发二维码或邀请码给他": "Users → Invite user: send the QR or code",
   "下第一笔订单": "Create your first order",
   "订单管理 → 新建订单，金额会自动带公司货币": "Orders → New order: the amount picks up your company currency",
   "把订单标记为已发货": "Mark an order as shipped",
@@ -1716,7 +1716,7 @@ const EN = {
   "<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。": "<b>How isolation works</b>: every query carries company_id, and Postgres RLS enforces it server-side — editing the frontend still gets you nothing.",
   "<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。": "<b>Security</b>: only the anon key belongs in the frontend — <b>never put the service_role key in the page</b>.",
   "<b>平台超级管理员不会自动产生</b>：第一个注册的人只是自己公司的管理员；要指定站长，由站长本人在 Supabase → SQL Editor 执行一条 update 把自己的账号设为 super_admin（写法见 supabase-schema.sql 末尾的说明）。": "<b>The platform super admin is never created automatically</b>: the first sign-up only becomes admin of its own company. To designate the site owner, run one UPDATE in Supabase → SQL Editor to set that account to super_admin (the exact statement is at the end of supabase-schema.sql).",
-  "<b>邀请是怎么走的：</b>「用户管理 → 邀请顾客」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>How does inviting work?</b> Users → Invite customer creates a 6-character code and a QR. Share the QR or the code on WhatsApp; the invitee enters the code at sign-up and joins the company automatically.",
+  "<b>邀请是怎么走的：</b>「用户管理 → 邀请用户」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>How does inviting work?</b> Users → Invite user creates a 6-character code and a QR. Share the QR or the code on WhatsApp; the invitee enters the code at sign-up and joins the company automatically.",
   "<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。": "<b>No email is sent.</b> Browsers cannot call a mail service, so nothing is emailed — you share the QR/code/link yourself.",
   "<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。": "<b>“Invite” fails — three causes:</b> ① you are not a company admin ② your account has no company ③ the setup SQL was not run (v2 must be re-run; the invites table needs a code column). Check the red message in the dialog.",
   "<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。": "<b>Signup rejected:</b> make sure Supabase → Authentication → Providers → Email is enabled; for internal use turn off “Confirm email”.",
@@ -1766,12 +1766,10 @@ const EN = {
   "常见问题": "FAQ",
   "二维码加载失败，请用下方链接": "QR failed — use the link instead",
   "邀请码": "Invite code",
-  "邀请顾客": "Invite customer",
-  "+ 邀请顾客": "+ Invite customer",
   "待使用的邀请码": "Unused invite codes",
   "让对方扫码或输入邀请码，注册即自动加入": "Scan the QR or enter the code — signup joins the company",
   "人员邀请": "Invites",
-  "备注（如：顾客 小王）": "Note (e.g. customer name)",
+  "备注（如：小王）": "Note (e.g. name)",
   "选填，方便你自己认人": "Optional, for your reference",
   "有效期": "Validity",
   "长期有效，用完自动作废": "Until used",
@@ -1780,7 +1778,7 @@ const EN = {
   "分享到 WhatsApp": "Share on WhatsApp",
   "二维码 / 分享": "QR / Share",
   "没有待使用的邀请码": "No unused invite codes",
-  "点「邀请顾客」生成二维码和邀请码": "Use “Invite customer” to create a QR and code",
+  "点「邀请用户」生成二维码和邀请码": "Use “Invite user” to create a QR and code",
   "邀请码无效或已被使用": "Invite code is invalid or already used",
   "请输入邀请码，或联系管理员获取": "Enter an invite code, or ask the admin for one",
   "生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。": "You will get a QR and a 6-character code — share it on WhatsApp or let them scan.",
@@ -1944,7 +1942,7 @@ const EN = {
   "你好 Max，我需要一个 MaxAI Portal 的邀请码。": "Hi Max, I need an invite code for MaxAI Portal.",
   "你好 {name}，我在使用 MaxAI Portal 时遇到问题：": "Hi {name}, I need help with MaxAI Portal.",
   "忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。": "Forgot password? Ask the admin to reset it from Supabase → Authentication → Users.",
-  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请顾客」生成。": "No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.",
+  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请用户」生成。": "No invite code? Contact the admin on WhatsApp — codes are generated in Users → Invite.",
   "看不到订单：多半是账号还没分配公司。": "Cannot see orders? Your account may have no company assigned yet.",
   "要新建公司或改角色：找超级管理员处理。": "Need a new company or role change? Only super admins can do it.",
   "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整，可点下方「连接填错了？重新填写」。": "Cannot reach this Supabase project: {err}. Check that Project URL and anon key were copied completely, or tap “Re-enter connection” below.",
@@ -2120,7 +2118,7 @@ const MS = {
   "客服支持": "Sokongan",
   "系统配置": "Tetapan sistem",
   "新建订单": "Pesanan baharu",
-  "邀请顾客": "Jemput pelanggan",
+  "邀请用户": "Jemput pengguna",
   "刷新": "Muat semula",
   "重置": "Set semula",
   "查看全部": "Lihat semua",
@@ -2254,11 +2252,11 @@ const MS = {
   "建第一家公司": "Cipta syarikat pertama",
   "公司管理 → 新建公司，填名称和默认货币": "Syarikat → Syarikat baharu: nama dan mata wang lalai",
   "生成第一个邀请码": "Jana jemputan pertama",
-  "用户管理 → 邀请顾客，把二维码或邀请码发给对方": "Pengguna → Jemput pelanggan: hantar kod QR atau kod",
+  "用户管理 → 邀请用户，把二维码或邀请码发给对方": "Pengguna → Jemput pengguna: hantar kod QR atau kod",
   "等对方注册后登录看看": "Tunggu mereka mendaftar",
   "用他注册的邮箱能登录，说明租户开通成功": "Jika e-mel mereka boleh log masuk, penyewa sudah aktif",
-  "邀请第一位顾客": "Jemput pelanggan pertama",
-  "用户管理 → 邀请顾客，发二维码或邀请码给他": "Pengguna → Jemput pelanggan: hantar kod QR atau kod",
+  "邀请第一位用户": "Jemput pengguna pertama",
+  "用户管理 → 邀请用户，发二维码或邀请码给他": "Pengguna → Jemput pengguna: hantar kod QR atau kod",
   "下第一笔订单": "Cipta pesanan pertama",
   "订单管理 → 新建订单，金额会自动带公司货币": "Pesanan → Pesanan baharu: jumlah ikut mata wang syarikat",
   "把订单标记为已发货": "Tandakan pesanan sebagai dihantar",
@@ -2319,7 +2317,6 @@ const MS = {
   "复制链接发给对方，用该邮箱注册即自动加入": "Hantar pautan — daftar dengan e-mel itu untuk menyertai",
   "搜索姓名 / 邮箱": "Cari nama / e-mel",
   "搜索公司名称 / 编号": "Cari nama / kod syarikat",
-  "邀请用户": "Jemput pengguna",
   "+ 邀请用户": "+ Jemput pengguna",
   "新建公司": "Syarikat baharu",
   "编辑订单": "Sunting pesanan",
@@ -2467,7 +2464,7 @@ const MS = {
   "<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。": "<b>Prinsip pengasingan</b>: setiap pertanyaan membawa company_id, dan Postgres RLS menguatkuasakannya di pihak pelayan — mengubah frontend pun tidak membuka data syarikat lain.",
   "<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。": "<b>Peringatan keselamatan</b>: hanya anon key diletakkan di frontend — <b>service_role key sama sekali tidak boleh dimasukkan ke dalam halaman web</b>.",
   "<b>平台超级管理员不会自动产生</b>：第一个注册的人只是自己公司的管理员；要指定站长，由站长本人在 Supabase → SQL Editor 执行一条 update 把自己的账号设为 super_admin（写法见 supabase-schema.sql 末尾的说明）。": "<b>Pentadbir platform tidak dijana secara automatik</b>: orang pertama yang mendaftar hanyalah pentadbir syarikatnya sendiri. Untuk menetapkan pemilik laman, jalankan satu UPDATE di Supabase → SQL Editor untuk menetapkan akaun itu sebagai super_admin (ayat penuh ada di hujung fail supabase-schema.sql).",
-  "<b>邀请是怎么走的：</b>「用户管理 → 邀请顾客」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>Bagaimana jemputan berfungsi?</b> Pengguna → Jemput pelanggan menjana kod 6 aksara dan kod QR. Kongsi kod QR atau kod itu di WhatsApp; penerima memasukkan kod semasa mendaftar dan menyertai syarikat anda secara automatik.",
+  "<b>邀请是怎么走的：</b>「用户管理 → 邀请用户」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。": "<b>Bagaimana jemputan berfungsi?</b> Pengguna → Jemput pengguna menjana kod 6 aksara dan kod QR. Kongsi kod QR atau kod itu di WhatsApp; penerima memasukkan kod semasa mendaftar dan menyertai syarikat anda secara automatik.",
   "<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。": "<b>Tiada e-mel dihantar secara automatik.</b> Pelayar tidak boleh memanggil perkhidmatan e-mel, jadi sistem tidak menghantar e-mel — anda sendiri yang berkongsi kod QR/kod/pautan itu.",
   "<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。": "<b>“Jemput” gagal — tiga punca:</b> ① anda bukan pentadbir syarikat ② akaun anda belum ditetapkan kepada syarikat ③ SQL inisialisasi belum dijalankan (v2 perlu dijalankan semula; jadual jemputan perlu lajur code). Semak teks merah dalam tetingkap.",
   "<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。": "<b>Pendaftaran ditolak:</b> pastikan Supabase → Authentication → Providers → Email dihidupkan; untuk kegunaan dalaman, matikan “Confirm email”.",
@@ -2490,11 +2487,10 @@ const MS = {
   "发送中…": "Menghantar…",
   "生成中…": "Menjana…",
   "WhatsApp / 电话同号，遇到问题直接联系": "WhatsApp dan telefon sama — hubungi terus jika ada masalah",
-  "+ 邀请顾客": "+ Jemput pelanggan",
   "待使用的邀请码": "Kod jemputan belum digunakan",
   "让对方扫码或输入邀请码，注册即自动加入": "Minta mereka imbas atau masukkan kod untuk menyertai",
   "人员邀请": "Jemputan ahli",
-  "备注（如：顾客 小王）": "Catatan (cth. pelanggan Ali)",
+  "备注（如：小王）": "Catatan (cth. nama)",
   "选填，方便你自己认人": "Pilihan — untuk mengenali mereka",
   "有效期": "Tempoh sah",
   "长期有效，用完自动作废": "Sah sehingga digunakan",
@@ -2503,7 +2499,7 @@ const MS = {
   "分享到 WhatsApp": "Kongsi ke WhatsApp",
   "二维码 / 分享": "QR / Kongsi",
   "没有待使用的邀请码": "Tiada kod belum digunakan",
-  "点「邀请顾客」生成二维码和邀请码": "Guna “Jemput pelanggan” untuk jana QR dan kod",
+  "点「邀请用户」生成二维码和邀请码": "Guna “Jemput pengguna” untuk jana QR dan kod",
   "邀请码无效或已被使用": "Kod tidak sah atau sudah digunakan",
   "请输入邀请码，或联系管理员获取": "Masukkan kod jemputan atau hubungi pentadbir",
   "生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。": "Anda akan dapat QR dan kod 6 aksara — kongsi di WhatsApp.",
@@ -2652,7 +2648,7 @@ const MS = {
   "你好 Max，我需要一个 MaxAI Portal 的邀请码。": "Hai Max, saya perlukan kod jemputan untuk MaxAI Portal.",
   "你好 {name}，我在使用 MaxAI Portal 时遇到问题：": "Hai {name}, saya perlukan bantuan dengan MaxAI Portal.",
   "忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。": "Lupa kata laluan? Minta pentadbir menetapkannya semula di Supabase → Authentication → Users.",
-  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请顾客」生成。": "Tiada kod jemputan? Hubungi pentadbir melalui WhatsApp — kod dijana di Pengguna → Jemput.",
+  "没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请用户」生成。": "Tiada kod jemputan? Hubungi pentadbir melalui WhatsApp — kod dijana di Pengguna → Jemput.",
   "看不到订单：多半是账号还没分配公司。": "Tidak nampak pesanan? Akaun anda mungkin belum ditetapkan kepada syarikat.",
   "要新建公司或改角色：找超级管理员处理。": "Perlu syarikat baharu atau tukar peranan? Hanya pentadbir platform boleh melakukannya.",
   "连不上这个 Supabase 项目：{err}。请确认 Project URL 与 anon key 复制完整，可点下方「连接填错了？重新填写」。": "Tidak dapat menyambung ke projek Supabase ini: {err}. Pastikan Project URL dan anon key disalin sepenuhnya, atau ketik “Isi semula konfigurasi” di bawah.",
@@ -2830,7 +2826,7 @@ const ICONS = {
 /* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
    登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
    同一分钟内连续部署，就在后面加 -r2 / -r3 … */
-const BUILD = 'v2026-11-24.1700';
+const BUILD = 'v2026-11-24.1715';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -4128,7 +4124,7 @@ function renderDashboard(recent) {
     '</div>' +
     '<div class="hello-actions">' +
       '<button class="btn light" type="button" data-act="new-order">+ ' + esc(t('新建订单')) + '</button>' +
-      (isStaff() ? '<button class="btn light" type="button" data-act="invite">+ ' + esc(t('邀请顾客')) + '</button>' : '') +
+      (isStaff() ? '<button class="btn light" type="button" data-act="invite">+ ' + esc(t('邀请用户')) + '</button>' : '') +
     '</div>';
 
   /* 金额按货币分开：S$ 与 RM 不能相加 */
@@ -4834,7 +4830,7 @@ function renderUsers() {
 
   if (!state.invites.length) {
     $('#invitesTable').innerHTML = '<tbody><tr><td><div class="empty"><b>' + esc(t('没有待使用的邀请码')) + '</b>' +
-      esc(t('点「邀请顾客」生成二维码和邀请码')) + '</div></td></tr></tbody>';
+      esc(t('点「邀请用户」生成二维码和邀请码')) + '</div></td></tr></tbody>';
   } else {
     const head = '<thead><tr><th>' + esc(t('邀请码')) + '</th><th>' + esc(t('备注')) + '</th><th>' + esc(t('角色')) + '</th>' +
       (isSuper() ? '<th>' + esc(t('公司')) + '</th>' : '') +
@@ -4920,10 +4916,10 @@ function openInviteModal() {
     : '<label class="field span-2"><span>' + esc(t('加入公司')) + '</span>' +
       '<input class="input" value="' + esc(state.company ? state.company.name : '') + '" disabled></label>';
 
-  openModal(t('邀请顾客'),
+  openModal(t('邀请用户'),
     '<form id="inviteForm" novalidate>' +
       '<div class="form-grid">' +
-        '<label class="field span-2"><span>' + esc(t('备注（如：顾客 小王）')) + '</span>' +
+        '<label class="field span-2"><span>' + esc(t('备注（如：小王）')) + '</span>' +
           '<input class="input" name="note" maxlength="40" placeholder="' + esc(t('选填，方便你自己认人')) + '"></label>' +
         '<label class="field"><span>' + esc(t('角色')) + '</span>' +
           '<select class="select" name="role">' +
@@ -5148,7 +5144,7 @@ function setupHtml() {
   ];
 
   const faq = [
-    t('<b>邀请是怎么走的：</b>「用户管理 → 邀请顾客」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。'),
+    t('<b>邀请是怎么走的：</b>「用户管理 → 邀请用户」会生成 6 位邀请码和二维码。把二维码给对方扫，或把邀请码发到 WhatsApp；对方注册时填邀请码，就自动加入你的公司。'),
     t('<b>不会自动发邮件：</b>浏览器没有发信能力，所以系统不发邮件——由你把二维码/邀请码/链接发给对方。'),
     t('<b>「邀请不了」三种原因：</b>① 你不是公司管理员 ② 你的账号没有归属公司 ③ 初始化 SQL 没执行（v2 需要重跑一次，邀请表要加 code 字段）。看弹窗里的红字。'),
     t('<b>对方注册被拒：</b>确认 Supabase → Authentication → Providers → Email 已开启；内部使用建议关掉 “Confirm email”。'),
@@ -5312,7 +5308,7 @@ function renderSupport() {
 
   const tips = [
     ['1', t('忘记密码：联系管理员在 Supabase → Authentication → Users 里重置。')],
-    ['2', t('没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请顾客」生成。')],
+    ['2', t('没有邀请码：WhatsApp 联系管理员，在「用户管理 → 邀请用户」生成。')],
     ['3', t('看不到订单：多半是账号还没分配公司。')],
     ['4', t('要新建公司或改角色：找超级管理员处理。')]
   ];
@@ -5436,10 +5432,10 @@ function renderOnboarding(counts) {
   const steps = [];
   if (isSuper()) {
     steps.push({ n: '1', title: '建第一家公司', desc: '公司管理 → 新建公司，填名称和默认货币', done: counts.companies > 0, go: 'companies', act: 'new-company' });
-    steps.push({ n: '2', title: '生成第一个邀请码', desc: '用户管理 → 邀请顾客，把二维码或邀请码发给对方', done: counts.invites > 0, go: 'users', act: 'invite' });
+    steps.push({ n: '2', title: '生成第一个邀请码', desc: '用户管理 → 邀请用户，把二维码或邀请码发给对方', done: counts.invites > 0, go: 'users', act: 'invite' });
     steps.push({ n: '3', title: '等对方注册后登录看看', desc: '用他注册的邮箱能登录，说明租户开通成功', done: false, go: 'users', act: '' });
   } else if (isAdmin()) {
-    steps.push({ n: '1', title: '邀请第一位顾客', desc: '用户管理 → 邀请顾客，发二维码或邀请码给他', done: counts.invites > 0 || counts.users > 1, go: 'users', act: 'invite' });
+    steps.push({ n: '1', title: '邀请第一位用户', desc: '用户管理 → 邀请用户，发二维码或邀请码给他', done: counts.invites > 0 || counts.users > 1, go: 'users', act: 'invite' });
     steps.push({ n: '2', title: '下第一笔订单', desc: '订单管理 → 新建订单，金额会自动带公司货币', done: counts.orders > 0, go: 'orders', act: 'new-order' });
     steps.push({ n: '3', title: '把订单标记为已发货', desc: '熟悉一下状态流转：待处理 → 已确认 → 已发货', done: false, go: 'orders', act: '' });
   } else {
