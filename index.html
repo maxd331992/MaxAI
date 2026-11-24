@@ -1059,7 +1059,7 @@ tr.credit-detail > td{background:rgba(255,255,255,.025);padding:0 !important}
         <div class="card">
           <div class="card-head">
             <h3><span data-i18n="订单列表">订单列表</span> <span class="muted sm-text" id="ordersCount"></span></h3>
-            <div class="head-actions"><span class="muted sm-text hide-sm" data-i18n="点击「编辑」可修改订单">点击「编辑」可修改订单</span><button class="btn ghost sm" type="button" data-act="export-csv" data-i18n="导出 CSV">导出 CSV</button></div>
+            <div class="head-actions"><span class="muted sm-text hide-sm" id="ordersEditHint" data-i18n="点击「编辑」可修改订单">点击「编辑」可修改订单</span><button class="btn ghost sm" type="button" data-act="export-csv" data-i18n="导出 CSV">导出 CSV</button></div>
           </div>
           <div class="table-wrap"><table class="table" id="ordersTable"></table></div>
           <div class="pager" id="ordersPager"></div>
@@ -1986,6 +1986,24 @@ const EN = {
   "{n} 笔逾期": "{n} overdue",
   "只显示最早的 8 笔，共 {n} 笔": "Showing the earliest 8 of {n}",
   "去菜单挑商品，下单后这里会显示订单和欠款。": "Pick products from the menu — your orders and balances will appear here.",
+  "公司员工": "Employee",
+  "查看本公司全部订单": "View all company orders",
+  "可以让管理员到「商品管理」上架商品，也可以直接在「订单管理」手动录单": "Ask an admin to list products in Products, or create orders manually in Orders",
+  "<b>公司员工</b>：看本公司全部订单、代客户下单、看客户欠款；不能改状态、收款、商品和用户。": "<b>Employee</b>: views all company orders, places orders for customers, sees customer balances; cannot change status, record payments, products or users.",
+  "顾客只能看菜单、下自己的单、看自己的订单和欠款；公司员工能看本公司全部订单、代客户下单、查看客户欠款（不能改状态/收款）；公司管理员能管理全公司订单、商品和用户。": "Customers can browse the menu, place their own orders and see their own orders and balances; employees can view all company orders, place orders for customers and see customer balances (no status/payment changes); company admins manage all company orders, products and users.",
+  "员工权限（可多选）": "Employee permissions (optional)",
+  "可更新订单状态（确认 / 发货 / 完成）": "Can update order status (confirm / ship / complete)",
+  "可登记收款（已付金额）": "Can record payments (paid amount)",
+  "员工始终可以：查看本公司全部订单、代客户下单、查看客户欠款。": "Employees can always view all company orders, place orders for customers and see customer balances.",
+  "改状态": "Change status",
+  "更新订单状态": "Update order status",
+  "登记收款": "Record payment",
+  "订单状态已更新": "Order status updated",
+  "已登记收款": "Payment recorded",
+  "员工只能改状态，不能改客户、商品、数量、金额。": "Employees can change status only — not customer, product, quantity or amount.",
+  "订单金额": "Order amount",
+  "顾客只能看菜单、下自己的单、看自己的订单和欠款；公司员工能看本公司全部订单、代客户下单、查看客户欠款，并按勾选获得改状态/收款权限；公司管理员能管理全公司订单、商品和用户。": "Customers can browse the menu, place their own orders and see their own orders and balances; employees can view all company orders, place orders for customers and see customer balances, with status/payment rights as ticked; company admins manage all company orders, products and users.",
+  "<b>公司员工</b>：看本公司全部订单、代客户下单、看客户欠款；改状态/收款按邀请时勾选的权限。": "<b>Employee</b>: views all company orders, places orders for customers, sees customer balances; status/payment rights follow what was ticked when inviting.",
 };
 
 /* 马来文（Bahasa Melayu）：覆盖登录、导航、订单、赊账、支持等主要界面；
@@ -2676,6 +2694,24 @@ const MS = {
   "{n} 笔逾期": "{n} lewat",
   "只显示最早的 8 笔，共 {n} 笔": "Memaparkan 8 terawal daripada {n}",
   "去菜单挑商品，下单后这里会显示订单和欠款。": "Pilih produk dari menu — pesanan dan baki anda akan dipaparkan di sini.",
+  "公司员工": "Pekerja",
+  "查看本公司全部订单": "Lihat semua pesanan syarikat",
+  "可以让管理员到「商品管理」上架商品，也可以直接在「订单管理」手动录单": "Minta pentadbir menyenaraikan produk di Produk, atau buat pesanan manual di Pesanan",
+  "<b>公司员工</b>：看本公司全部订单、代客户下单、看客户欠款；不能改状态、收款、商品和用户。": "<b>Pekerja</b>: melihat semua pesanan syarikat, membuat pesanan untuk pelanggan, melihat baki pelanggan; tidak boleh mengubah status, merekod bayaran, produk atau pengguna.",
+  "顾客只能看菜单、下自己的单、看自己的订单和欠款；公司员工能看本公司全部订单、代客户下单、查看客户欠款（不能改状态/收款）；公司管理员能管理全公司订单、商品和用户。": "Pelanggan hanya boleh melihat menu, membuat pesanan sendiri serta melihat pesanan dan baki sendiri; pekerja boleh melihat semua pesanan syarikat, membuat pesanan untuk pelanggan dan melihat baki pelanggan (tidak boleh ubah status/bayaran); pentadbir syarikat boleh mengurus semua pesanan, produk dan pengguna syarikat.",
+  "员工权限（可多选）": "Kebenaran pekerja (pilihan)",
+  "可更新订单状态（确认 / 发货 / 完成）": "Boleh kemas kini status pesanan (sahkan / hantar / selesai)",
+  "可登记收款（已付金额）": "Boleh rekod bayaran (jumlah dibayar)",
+  "员工始终可以：查看本公司全部订单、代客户下单、查看客户欠款。": "Pekerja sentiasa boleh melihat semua pesanan syarikat, membuat pesanan untuk pelanggan dan melihat baki pelanggan.",
+  "改状态": "Tukar status",
+  "更新订单状态": "Kemas kini status pesanan",
+  "登记收款": "Rekod bayaran",
+  "订单状态已更新": "Status pesanan dikemas kini",
+  "已登记收款": "Bayaran direkodkan",
+  "员工只能改状态，不能改客户、商品、数量、金额。": "Pekerja hanya boleh tukar status — bukan pelanggan, produk, kuantiti atau jumlah.",
+  "订单金额": "Jumlah pesanan",
+  "顾客只能看菜单、下自己的单、看自己的订单和欠款；公司员工能看本公司全部订单、代客户下单、查看客户欠款，并按勾选获得改状态/收款权限；公司管理员能管理全公司订单、商品和用户。": "Pelanggan hanya boleh melihat menu, membuat pesanan sendiri serta melihat pesanan dan baki sendiri; pekerja boleh melihat semua pesanan syarikat, membuat pesanan untuk pelanggan dan melihat baki pelanggan, dengan hak status/bayaran mengikut pilihan; pentadbir syarikat boleh mengurus semua pesanan, produk dan pengguna syarikat.",
+  "<b>公司员工</b>：看本公司全部订单、代客户下单、看客户欠款；改状态/收款按邀请时勾选的权限。": "<b>Pekerja</b>: melihat semua pesanan syarikat, membuat pesanan untuk pelanggan, melihat baki pelanggan; hak status/bayaran mengikut pilihan semasa menjemput.",
 };
 /* 三种语言：中文 / English / Bahasa Melayu（BM 没翻译到的词回落到英文） */
 const DICTS = { en: EN, ms: MS };
@@ -2771,6 +2807,7 @@ function isOverdue(o) {
 const ROLE = {
   super_admin:   { label: '超级管理员', cls: 'blue' },
   company_admin: { label: '公司管理员', cls: 'info' },
+  employee:      { label: '公司员工', cls: 'warn' },
   user:          { label: '顾客', cls: 'muted' }
 };
 
@@ -2793,7 +2830,7 @@ const ICONS = {
 /* 版本号：每次改动并部署都改成当前时间（yyyy-MM-dd.HHmm，例 v2026-11-22.1740），
    登录页左下角会显示它（BUILD · xxxKB），用来区分线上新旧版。
    同一分钟内连续部署，就在后面加 -r2 / -r3 … */
-const BUILD = 'v2026-11-24.1605';
+const BUILD = 'v2026-11-24.1700';
 
 const SUPPORT = {
   name: 'Max Dee',
@@ -3029,7 +3066,9 @@ function createSupa() {
 /* 角色 */
 function isSuper() { return !!state.me && state.me.role === 'super_admin'; }
 function isAdmin() { return !!state.me && state.me.role === 'company_admin'; }
+function isEmployee() { return !!state.me && state.me.role === 'employee'; }
 function isStaff() { return isSuper() || isAdmin(); }
+function isStaffLike() { return isStaff() || isEmployee(); }
 function myCompanyId() { return state.me ? state.me.company_id : null; }
 function canEditOrder(o) {
   if (!state.me) return false;
@@ -3678,7 +3717,7 @@ async function enterApp() {
     $('#appShell').hidden = false;
 
     startBell();
-    await switchView(isCustomer() ? 'menu' : 'dashboard');
+    await switchView(isCustomer() ? 'menu' : (isEmployee() ? 'orders' : 'dashboard'));
   } catch (e) {
     console.error(e);
     try { await sb.auth.signOut(); } catch (e2) { /* 忽略 */ }
@@ -3702,6 +3741,8 @@ function showBlocked(title, text) {
 function navItems() {
   /* 顾客（顾客）登录后第一眼是菜单 */
   if (isCustomer()) return ['menu', 'account', 'orders', 'support'];
+  /* 公司员工：订单 + 菜单 + 赊账 + 客服；商品/用户/设置仍只有管理员能进 */
+  if (isEmployee()) return ['orders', 'menu', 'credit', 'support'];
 
   const list = ['dashboard'];
   /* 平台方（super_admin）不参与任何公司的订单，连入口都不给 */
@@ -3799,7 +3840,12 @@ async function switchView(id) {
 
 function subFor(id) {
   if (id === 'dashboard') return isSuper() ? t('平台控制台') : t('本公司业务概览');
-  if (id === 'orders') return isSuper() ? t('查看并管理所有公司的订单') : t('查看并管理本公司订单');
+  if (id === 'orders') {
+    if (isSuper()) return t('查看并管理所有公司的订单');
+    if (isEmployee()) return t('查看本公司全部订单');
+    if (isCustomer()) return t('查看我的订单');
+    return t('查看并管理本公司订单');
+  }
   if (id === 'users') return isSuper() ? t('管理全部账号、角色与公司归属') : t('管理本公司成员与角色');
   return t(VIEW_META[id].sub);
 }
@@ -4211,6 +4257,8 @@ async function loadOrders(page) {
 }
 
 function renderOrders() {
+  const editHint = document.getElementById('ordersEditHint');
+  if (editHint) editHint.hidden = !isAdmin();
   const st = state.orders;
   const showCompany = isSuper();
   $('#ordersCount').textContent = tf('共 {n} 条', { n: st.count });
@@ -4239,6 +4287,13 @@ function renderOrders() {
       }
       ops.push('<button class="link" type="button" data-act="edit-order" data-id="' + o.id + '">' + esc(t('编辑')) + '</button>');
       ops.push('<button class="link danger" type="button" data-act="del-order" data-id="' + o.id + '">' + esc(t('删除')) + '</button>');
+    } else if (isEmployee() && o.company_id === myCompanyId()) {
+      if (state.me.can_update_orders && o.status !== 'cancelled') {
+        ops.push('<button class="link" type="button" data-act="emp-status" data-id="' + o.id + '">' + esc(t('改状态')) + '</button>');
+      }
+      if (state.me.can_record_payment && o.status !== 'cancelled') {
+        ops.push('<button class="link" type="button" data-act="emp-pay" data-id="' + o.id + '">' + esc(t('登记收款')) + '</button>');
+      }
     }
     return '<tr>' +
       '<td class="mono muted nowrap" style="font-size:11.5px">' + esc(o.order_no || '—') + '</td>' +
@@ -4577,6 +4632,84 @@ async function saveOrder(event) {
   }
 }
 
+/* 员工：改状态（不含取消；SQL 里有守卫） */
+function openEmployeeStatus(id) {
+  const o = state.orders.rows.filter(function (r) { return r.id === id; })[0];
+  if (!o) return;
+  const list = ['pending', 'confirmed', 'shipped', 'completed'];
+  openModal(t('更新订单状态'),
+    '<form id="empStatusForm" novalidate>' +
+      '<div class="field"><span>' + esc(t('状态')) + '</span><select class="select" name="status">' +
+        list.map(function (k) {
+          return '<option value="' + k + '"' + (o.status === k ? ' selected' : '') + '>' + esc(t(STATUS[k].label)) + '</option>';
+        }).join('') + '</select></div>' +
+      '<p class="hint">' + esc(t('员工只能改状态，不能改客户、商品、数量、金额。')) + '</p>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
+      '</div></form>');
+  $('#empStatusForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const err = f.querySelector('.form-error');
+    const btn = f.querySelector('[type=submit]');
+    err.textContent = '';
+    btn.disabled = true; btn.textContent = t('保存中…');
+    try {
+      const res = await sb.from('orders').update({ status: f.status.value }).eq('id', o.id);
+      if (res.error) throw res.error;
+      closeModal();
+      toast(t('订单状态已更新'), 'ok');
+      await loadOrders(state.orders.page);
+    } catch (e) { err.textContent = errMsg(e); }
+    finally { btn.disabled = false; btn.textContent = t('保存'); }
+  });
+}
+
+/* 员工：登记收款（只改付款状态 / 已付金额） */
+function openEmployeePayment(id) {
+  const o = state.orders.rows.filter(function (r) { return r.id === id; })[0];
+  if (!o) return;
+  const cur = companyCurrency(o.company_id);
+  openModal(t('登记收款'),
+    '<form id="empPayForm" novalidate>' +
+      '<div class="field"><span>' + esc(t('付款状态')) + '</span><select class="select" name="payment_status">' + payOptions(o.payment_status) + '</select></div>' +
+      '<div class="field" style="margin-top:10px"><span>' + esc(t('已付金额')) + ' (' + esc(curSymbol(cur)) + ')</span>' +
+        '<input class="input" name="paid_amount" type="number" min="0" step="0.01" value="' + esc(Number(o.paid_amount) || 0) + '"></div>' +
+      '<p class="hint">' + esc(t('订单金额')) + '：' + money(o.amount, cur) + '</p>' +
+      '<div class="form-error"></div>' +
+      '<div class="form-actions">' +
+        '<button class="btn ghost" type="button" data-close>' + esc(t('取消')) + '</button>' +
+        '<button class="btn primary" type="submit">' + esc(t('保存')) + '</button>' +
+      '</div></form>');
+  $('#empPayForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const err = f.querySelector('.form-error');
+    const btn = f.querySelector('[type=submit]');
+    err.textContent = '';
+    const amount = Number(o.amount) || 0;
+    const st = f.payment_status.value;
+    let paid = Number(f.paid_amount.value) || 0;
+    if (st === 'paid') paid = amount;
+    else if (st === 'unpaid') paid = 0;
+    if (paid > amount) { err.textContent = t('已付金额不能大于订单金额'); return; }
+    if (st === 'partial' && (paid <= 0 || paid >= amount)) {
+      err.textContent = t('部分付款：已付金额要大于 0 且小于订单金额'); return;
+    }
+    btn.disabled = true; btn.textContent = t('保存中…');
+    try {
+      const res = await sb.from('orders').update({ payment_status: st, paid_amount: paid }).eq('id', o.id);
+      if (res.error) throw res.error;
+      closeModal();
+      toast(t('已登记收款'), 'ok');
+      await loadOrders(state.orders.page);
+    } catch (e) { err.textContent = errMsg(e); }
+    finally { btn.disabled = false; btn.textContent = t('保存'); }
+  });
+}
+
 async function doDeleteOrder(id) {
   const o = state.orders.rows.filter(function (r) { return r.id === id; })[0];
   if (!o) return;
@@ -4612,7 +4745,7 @@ function resetFilters() {
  * 13. 用户 / 邀请
  * -------------------------------------------------------------------------- */
 function roleOptions(selected) {
-  const opts = [['company_admin', '公司管理员'], ['user', '顾客']];
+  const opts = [['company_admin', '公司管理员'], ['employee', '公司员工'], ['user', '顾客']];
   if (isSuper()) opts.unshift(['super_admin', '超级管理员']);
   return opts.map(function (p) {
     return '<option value="' + p[0] + '"' + (p[0] === selected ? ' selected' : '') + '>' + esc(t(p[1])) + '</option>';
@@ -4795,13 +4928,20 @@ function openInviteModal() {
         '<label class="field"><span>' + esc(t('角色')) + '</span>' +
           '<select class="select" name="role">' +
             '<option value="company_admin">' + esc(t('公司管理员')) + '</option>' +
+            '<option value="employee">' + esc(t('公司员工')) + '</option>' +
             '<option value="user" selected>' + esc(t('顾客')) + '</option>' +
           '</select></label>' +
         '<label class="field"><span>' + esc(t('有效期')) + '</span>' +
           '<input class="input" value="' + esc(t('长期有效，用完自动作废')) + '" disabled></label>' +
         companyField +
       '</div>' +
-      '<p class="hint" style="margin-top:10px">' + esc(t('顾客只能看菜单、下自己的单、看自己的订单；公司管理员能管理全公司订单、商品和用户。')) + '</p>' +
+      '<div id="empPermBox" hidden style="margin-top:12px;padding:12px;border:1px solid var(--line,#26314a);border-radius:12px">' +
+        '<div style="font-weight:700;margin-bottom:8px">' + esc(t('员工权限（可多选）')) + '</div>' +
+        '<label class="check" style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" name="can_update_orders"><span>' + esc(t('可更新订单状态（确认 / 发货 / 完成）')) + '</span></label>' +
+        '<label class="check" style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" name="can_record_payment"><span>' + esc(t('可登记收款（已付金额）')) + '</span></label>' +
+        '<div class="hint" style="margin-top:6px">' + esc(t('员工始终可以：查看本公司全部订单、代客户下单、查看客户欠款。')) + '</div>' +
+      '</div>' +
+      '<p class="hint" style="margin-top:10px">' + esc(t('顾客只能看菜单、下自己的单、看自己的订单和欠款；公司员工能看本公司全部订单、代客户下单、查看客户欠款，并按勾选获得改状态/收款权限；公司管理员能管理全公司订单、商品和用户。')) + '</p>' +
       '<p class="hint" style="margin-top:12px">' +
         esc(t('生成后得到二维码 + 6 位邀请码，可直接分享到 WhatsApp 或让对方扫码。')) + '</p>' +
       '<div class="form-error"></div>' +
@@ -4815,6 +4955,14 @@ function openInviteModal() {
      公司管理员自己发的邀请默认「顾客」→ 邀请员工/客户 */
   const roleSel = $('#inviteForm select[name=role]');
   if (roleSel && isSuper()) roleSel.value = 'company_admin';
+  const empBox = $('#empPermBox');
+  function syncEmpPerm() {
+    const on = !!(roleSel && roleSel.value === 'employee');
+    if (!empBox) return;
+    empBox.hidden = !on;
+    if (!on) empBox.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
+  }
+  if (roleSel) { roleSel.addEventListener('change', syncEmpPerm); syncEmpPerm(); }
   setTimeout(function () { const i = $('#inviteForm input[name=note]'); if (i) i.focus(); }, 80);
 }
 
@@ -4827,6 +4975,8 @@ async function saveInvite(event) {
 
   const role = form.role.value;
   const note = form.note.value.trim() || null;
+  const canUpdate = role === 'employee' && !!(form.can_update_orders && form.can_update_orders.checked);
+  const canPay = role === 'employee' && !!(form.can_record_payment && form.can_record_payment.checked);
   const companyId = isSuper() ? form.company_id.value : myCompanyId();
 
   if (!companyId) { errBox.textContent = t('请选择公司'); return; }
@@ -4840,7 +4990,8 @@ async function saveInvite(event) {
     for (let i = 0; i < 3 && !inv; i++) {
       const code = newInviteCode();
       const res = await sb.from('invites').insert({
-        code: code, role: role, company_id: companyId, note: note, invited_by: state.me.id
+        code: code, role: role, company_id: companyId, note: note, invited_by: state.me.id,
+        can_update_orders: canUpdate, can_record_payment: canPay
       }).select().maybeSingle();
       if (res.error) {
         lastErr = res.error;
@@ -4989,6 +5140,7 @@ function setupHtml() {
   const notes = [
     t('<b>平台方（超级管理员）</b>：只管理公司与账号，<b>看不到任何公司的订单</b>（数据库层已隔离）。'),
     t('<b>公司管理员</b>：只能看到本公司数据；可邀请成员、管理本公司订单。'),
+    t('<b>公司员工</b>：看本公司全部订单、代客户下单、看客户欠款；改状态/收款按邀请时勾选的权限。'),
     t('<b>顾客</b>：只看到自己录入的订单，只能新建订单。'),
     t('<b>隔离原理</b>：前端查询都带 company_id，真正兜底的是 Postgres RLS —— 改前端也拿不到别家数据。'),
     t('<b>安全提醒</b>：前端只放 anon key，<b>service_role key 绝不能写进网页</b>。'),
@@ -5638,7 +5790,7 @@ async function loadMenu() {
 function menuList() {
   const q = state.menuQ.toLowerCase();
   return state.products.filter(function (p) {
-    if (!isStaff() && !p.is_active) return false;
+    if (!isStaffLike() && !p.is_active) return false;
     if (state.menuCat && p.category !== state.menuCat) return false;
     if (q) {
       const hay = ((p.name || '') + ' ' + (p.description || '') + ' ' + (p.category || '') + ' ' + (p.category ? t(p.category) : '')).toLowerCase();
@@ -5682,8 +5834,10 @@ function renderMenu() {
     $('#menuGrid').innerHTML = '<div class="card"><div class="empty"><b>' + esc(t('还没有上架商品')) + '</b>' +
       (isStaff()
         ? esc(t('可以到「商品管理」上架商品，也可以直接在「订单管理」手动录单'))
-        : esc(t('商家还没有上架商品，可以直接在「订单管理」手动下单'))) +
-      (!isStaff() && state.company && state.company.phone
+        : (isEmployee()
+            ? esc(t('可以让管理员到「商品管理」上架商品，也可以直接在「订单管理」手动录单'))
+            : esc(t('商家还没有上架商品，可以直接在「订单管理」手动下单')))) +
+      (!isStaffLike() && state.company && state.company.phone
         ? '<div style="margin-top:14px"><a class="btn primary" target="_blank" rel="noopener" href="' + esc(waLinkFor(state.company.phone, (state.company && state.company.currency) || 'SGD', t('你好，我想咨询你们的产品'))) + '">' + esc(t('联系卖家')) + '</a></div>'
         : '') + '</div></div>';
     updateCartBar();
@@ -7667,6 +7821,8 @@ function bindEvents() {
         if (o) openOrderModal(o);
         break;
       }
+      case 'emp-status': openEmployeeStatus(id); break;
+      case 'emp-pay': openEmployeePayment(id); break;
       case 'del-order': doDeleteOrder(id); break;
       case 'page': loadOrders(parseInt(id, 10)).catch(function (e) { toast(errMsg(e), 'error'); }); break;
       case 'reset-filters': resetFilters(); break;
